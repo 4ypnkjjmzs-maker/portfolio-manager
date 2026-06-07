@@ -1,0 +1,2970 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>資產配置管理器</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+:root {
+  --bg:#0a0a0a; --surface:#151515; --surface2:#1e1e1e; --border:#282828;
+  --gold:#c9a84c; --gold2:#e8c97a; --red:#e05555; --green:#4caf82;
+  --text:#ededed; --text2:#9a9a9a; --muted:#5e5e5e;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif;min-height:100vh;overflow-x:hidden;}
+
+.header{padding:28px 20px 16px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#131313,var(--bg));position:sticky;top:0;z-index:100;}
+.header-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;}
+.app-title{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:4px;color:var(--text2);text-transform:uppercase;}
+.total-label{font-size:11px;color:var(--muted);}
+.total-value{font-family:'Space Mono',monospace;font-size:26px;font-weight:700;color:var(--gold2);letter-spacing:-1px;}
+
+.tabs{display:flex;border-bottom:1px solid var(--border);padding:0 20px;background:var(--bg);position:sticky;top:76px;z-index:99;overflow-x:auto;}
+.tab{font-size:11px;letter-spacing:2px;color:var(--muted);padding:13px 0;margin-right:24px;cursor:pointer;border-bottom:2px solid transparent;transition:all .1s;font-family:'Space Mono',monospace;text-transform:uppercase;white-space:nowrap;flex-shrink:0;}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+
+.content{padding:16px 20px 120px;}
+.section-label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;margin-top:20px;}
+
+/* Group card */
+.group-card{border-radius:14px;margin-bottom:16px;overflow:hidden;}
+.group-header{padding:14px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;}
+.group-label{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;flex:1;}
+.group-pct-badge{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--gold2);}
+.group-toggle{font-size:12px;color:var(--muted);transition:transform .2s;}
+.group-body{padding:0 12px 12px;}
+
+/* Asset card */
+.asset-card{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:8px;}
+.asset-header{display:flex;align-items:center;margin-bottom:10px;gap:8px;}
+.asset-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.asset-titles{flex:1;min-width:0;}
+.asset-ticker{font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--text);}
+.asset-name{font-size:11px;color:var(--muted);margin-top:1px;}
+.asset-pct-badge{font-family:'Space Mono',monospace;font-size:11px;color:var(--gold);background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.25);border-radius:20px;padding:3px 8px;white-space:nowrap;}
+.del-btn{width:28px;height:28px;border-radius:50%;background:rgba(224,85,85,.12);border:1px solid rgba(224,85,85,.3);color:var(--red);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+
+.asset-row{display:flex;gap:8px;}
+.input-group{flex:1;}
+.input-label{font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:4px;font-family:'Space Mono',monospace;text-transform:uppercase;}
+.input-field{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:'Space Mono',monospace;font-size:13px;outline:none;-webkit-appearance:none;appearance:none;transition:border-color .2s;}
+.input-field:focus{border-color:var(--gold);}
+.input-field::placeholder{color:var(--muted);}
+
+/* Slider */
+.slider-row{margin-top:10px;}
+.slider-labels{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.slider-lbl{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+.slider-val{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--gold2);}
+/* ── Tech bar slider ──────────────────────────────── */
+input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  width:100%;height:2px;border-radius:0;
+  background:linear-gradient(to right,var(--gold) var(--val,50%),#2a2a2a var(--val,50%));
+  outline:none;cursor:pointer;
+}
+/* Wide touch area, thin visual bar via gradient */
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:28px;height:28px;
+  border-radius:2px;border:none;cursor:pointer;
+  /* Centre 4px = gold bar, sides transparent → looks thin, grabs wide */
+  background:linear-gradient(
+    to right,
+    transparent 43%,
+    var(--gold) 43%,
+    var(--gold) 57%,
+    transparent 57%
+  );
+  filter:drop-shadow(0 0 4px rgba(201,168,76,.7));
+  transition:filter .15s;
+}
+input[type=range]:hover::-webkit-slider-thumb{
+  filter:drop-shadow(0 0 8px rgba(201,168,76,1));
+}
+input[type=range]:active::-webkit-slider-thumb{
+  filter:drop-shadow(0 0 12px rgba(201,168,76,1));
+}
+/* Leverage slider — blue */
+input[type=range].lev-slider{
+  background:linear-gradient(to right,#5b9bd5 var(--val,50%),#2a2a2a var(--val,50%));
+}
+input[type=range].lev-slider::-webkit-slider-thumb{
+  background:linear-gradient(
+    to right,
+    transparent 43%,
+    #5b9bd5 43%,
+    #5b9bd5 57%,
+    transparent 57%
+  );
+  filter:drop-shadow(0 0 4px rgba(91,155,213,.7));
+}
+input[type=range].lev-slider:hover::-webkit-slider-thumb{
+  filter:drop-shadow(0 0 8px rgba(91,155,213,1));
+}
+/* Group pct slider */
+input[type=range].grp-slider{
+  background:linear-gradient(to right,var(--gold2) var(--val,50%),#2a2a2a var(--val,50%));
+}
+input[type=range].grp-slider::-webkit-slider-thumb{
+  background:linear-gradient(
+    to right,
+    transparent 43%,
+    var(--gold2) 43%,
+    var(--gold2) 57%,
+    transparent 57%
+  );
+  filter:drop-shadow(0 0 4px rgba(232,201,122,.7));
+}
+/* Firefox */
+input[type=range]::-moz-range-thumb{
+  width:4px;height:22px;border-radius:1px;
+  background:var(--gold);border:none;cursor:pointer;
+}
+input[type=range].lev-slider::-moz-range-thumb{ background:#5b9bd5; }
+input[type=range].grp-slider::-moz-range-thumb{ background:var(--gold2); }
+
+/* Add panel */
+.add-panel{background:var(--surface);border:1px dashed rgba(201,168,76,.35);border-radius:12px;padding:14px;margin-bottom:10px;}
+.add-panel-title{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--gold);text-transform:uppercase;margin-bottom:12px;}
+.add-row{display:flex;gap:8px;flex-wrap:wrap;}
+.add-row .input-group{flex:1;min-width:72px;}
+.add-btn{width:100%;background:var(--gold);color:#0a0a0a;border:none;border-radius:10px;padding:13px;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;font-weight:700;text-transform:uppercase;cursor:pointer;margin-top:10px;}
+.add-btn:active{background:var(--gold2);}
+
+/* Withdraw */
+.withdraw-card{background:var(--surface);border:1px solid rgba(201,168,76,.3);border-radius:12px;padding:14px;margin-bottom:10px;}
+.withdraw-title{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--gold);margin-bottom:10px;text-transform:uppercase;}
+.calc-btn{width:100%;background:var(--gold);color:#0a0a0a;border:none;border-radius:12px;padding:15px;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:3px;font-weight:700;text-transform:uppercase;cursor:pointer;margin-top:8px;}
+.calc-btn:active{background:var(--gold2);}
+
+/* Summary */
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.summary-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;}
+.summary-card-label{font-size:13px;color:#9a9a9a;margin-bottom:6px;font-family:'Noto Sans TC',sans-serif;font-weight:500;}
+.summary-card-value{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--gold2);}
+.summary-card-value.positive{color:var(--green);}
+.summary-card-value.negative{color:var(--red);}
+
+.action-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:10px;}
+.action-row{display:flex;justify-content:space-between;align-items:stretch;padding:11px 0;border-bottom:1px solid var(--border);min-height:62px;box-sizing:border-box;}
+.action-row:last-child{border-bottom:none;padding-bottom:0;}
+.action-row:first-child{padding-top:0;}
+.action-ticker{font-family:'Space Mono',monospace;font-size:17px;font-weight:700;line-height:1.4;}
+.action-detail{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.action-amount{font-family:'Space Mono',monospace;font-size:14px;font-weight:700;line-height:1.4;white-space:nowrap;}
+.buy{color:var(--green);}.sell{color:var(--red);}.hold{color:var(--muted);}
+
+/* Group rebalance section */
+.group-rebal{background:var(--surface);border-radius:16px;margin-bottom:16px;overflow:hidden;}
+.group-rebal-header{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+.group-rebal-title{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:2px;}
+.group-rebal-body{padding:8px 22px 12px;}
+
+/* Returns */
+.annual-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;}
+.annual-row:last-child{border-bottom:none;}
+
+/* Pct warning */
+.pct-warning{font-family:'Space Mono',monospace;font-size:10px;text-align:center;padding:8px;border-radius:8px;margin-top:4px;}
+.pct-ok{color:var(--green);background:rgba(76,175,130,.08);}
+.pct-bad{color:var(--red);background:rgba(224,85,85,.08);}
+
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+
+/* Donut */
+.chart-wrap{display:flex;align-items:center;padding:16px 4px 8px;gap:20px;}
+.donut-holder{position:relative;width:128px;height:128px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}
+.donut-center-label{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:3px;}
+.donut-center-value{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--text);letter-spacing:-.5px;}
+svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter:drop-shadow(0 2px 8px rgba(0,0,0,.5));}
+.donut-legend{flex:1;}
+.legend-item{display:flex;align-items:center;margin-bottom:9px;}
+.legend-dot{width:9px;height:9px;border-radius:3px;margin-right:9px;flex-shrink:0;box-shadow:0 0 6px currentColor;}
+.legend-ticker{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;flex:1;color:var(--text);}
+.legend-pct{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--text2);}
+
+/* ── Desktop layout ─────────────────────────────────── */
+@media (min-width: 768px) {
+  body {
+    background:#050505 !important;
+    min-height:100vh;
+    margin:0; padding:0;
+  }
+  .app-shell {
+    width:100%;
+    max-width:480px;
+    margin:0 auto;
+    background:var(--bg);
+    box-shadow:0 0 80px rgba(0,0,0,.9);
+    min-height:100vh;
+  }
+  /* Single fixed wrapper for header + tabs — no height guessing needed */
+  .fixed-top {
+    position:fixed !important;
+    top:0 !important;
+    left:50% !important;
+    transform:translateX(-50%) !important;
+    width:100% !important;
+    max-width:480px !important;
+    z-index:200 !important;
+    background:var(--bg) !important;
+    box-sizing:border-box !important;
+    overflow:visible !important;
+  }
+  /* Reset header & tabs to normal flow inside fixed-top */
+  .header {
+    position:static !important;
+    padding:24px 28px 14px !important;
+    background:linear-gradient(180deg,#131313,var(--bg)) !important;
+    box-sizing:border-box !important;
+  }
+  .acct-bar {
+    padding:8px 28px !important;
+  }
+  .tabs {
+    position:static !important;
+    padding:0 28px !important;
+    background:var(--bg) !important;
+    box-sizing:border-box !important;
+  }
+  /* Content padding: enough to clear fixed-top (measured by JS below) */
+  .content {
+    padding-left:28px !important;
+    padding-right:28px !important;
+    padding-bottom:120px !important;
+  }
+  .asset-ticker { font-size:16px !important; }
+  .input-field  { font-size:14px !important; padding:12px !important; }
+  .total-value  { font-size:30px !important; }
+}
+
+/* ── Account switcher ───────────────────────────────── */
+.acct-bar{
+  display:flex;align-items:center;gap:6px;
+  padding:8px 20px;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+}
+.acct-btn{
+  flex:1;padding:8px 0;border-radius:8px;
+  font-family:'Space Mono',monospace;font-size:11px;font-weight:700;
+  letter-spacing:1px;cursor:pointer;border:1px solid var(--border);
+  background:none;color:var(--muted);transition:all .2s;
+}
+.acct-btn.active{
+  background:var(--gold);color:#0a0a0a;border-color:var(--gold);
+}
+.acct-btn.active.b{
+  background:#5b9bd5;border-color:#5b9bd5;color:#fff;
+}
+.acct-edit{
+  width:24px;height:24px;border-radius:6px;background:none;
+  border:1px solid var(--border);color:var(--muted);
+  font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+}
+
+/* ── Exchange rate ──────────────────────────────────── */
+.usd-hint{font-family:'Space Mono',monospace;font-size:11px;color:#5b9bd5;margin-top:5px;letter-spacing:.5px;}
+.rate-row{display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(91,155,213,.06);border-radius:8px;margin-bottom:10px;border:1px solid rgba(91,155,213,.2);}
+.rate-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;flex-shrink:0;}
+.rate-input{background:none;border:none;border-bottom:1px solid rgba(91,155,213,.4);color:#5b9bd5;font-family:'Space Mono',monospace;font-size:14px;font-weight:700;width:60px;outline:none;text-align:center;padding:2px 4px;}
+.rate-flag{font-size:13px;}
+
+/* ── Price display ──────────────────────────────────── */
+.price-row{display:flex;align-items:center;gap:8px;margin:8px 0;padding:8px 10px;
+  background:rgba(201,168,76,.06);border-radius:8px;border:1px solid rgba(201,168,76,.15);}
+.price-fetch-btn{width:26px;height:26px;border-radius:6px;background:rgba(201,168,76,.12);
+  border:1px solid rgba(201,168,76,.3);color:var(--gold);font-size:13px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.shares-input{width:90px !important;}
+
+/* ── Drift alert ──────────────────────────────────── */
+
+.pnl-positive{ color:var(--green); }
+.pnl-negative{ color:var(--red); }
+.pnl-zero{ color:var(--muted); }
+
+/* ── Utility cards ──────────────────────────────── */
+.util-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  overflow:hidden;
+  transition:opacity .2s, outline .15s;
+}
+.util-card.dragging{ opacity:0.5; }
+.util-card.drag-over{ outline:2px solid var(--gold); }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+<div class="fixed-top"><div class="header">
+  <div class="header-top">
+    <span class="app-title">Portfolio</span>
+    
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+    <div class="total-value" id="totalDisplay">—</div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+      <span id="saveStatus" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--green);letter-spacing:1px;opacity:0.5;transition:opacity .4s"></span>
+      <span id="refreshCountdown" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--gold2);letter-spacing:1px;opacity:0.7"></span>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">
+        <button onclick="shareJSON()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">匯出</button>
+        <button onclick="document.getElementById('importInput').click()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">匯入</button>
+        <button id="fetchAllBtn" onclick="fetchAllPrices()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0;color:var(--gold2);background:rgba(232,201,122,.12);border:1px solid rgba(232,201,122,.35);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">更新報價</button>
+        <button onclick="saveData();switchTab('rebalance')" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0;color:#5b9bd5;background:rgba(91,155,213,.12);border:1px solid rgba(91,155,213,.35);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">再平衡</button>
+        <button onclick="clearData()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">重置</button>
+      </div>
+      <input type="file" id="importInput" accept=".json" style="display:none" onchange="importJSON(event)">
+    </div>
+  </div>
+</div>
+
+<div class="acct-bar" id="acctBar">
+    <button class="acct-btn active" id="acctBtnA" onclick="switchAccount('A')">帳戶 A</button>
+    <button class="acct-btn b" id="acctBtnB" onclick="switchAccount('B')">帳戶 B</button>
+    <button class="acct-edit" id="acctEditBtn" onclick="editAccountName()" title="重新命名">✎</button>
+  </div>
+  <div class="tabs">
+  <div class="tab active" onclick="switchTab('holdings')">持倉</div>
+  <div class="tab" onclick="switchTab('rebalance')">再平衡</div>
+  <div class="tab" onclick="switchTab('returns')">報酬試算</div>
+  <div class="tab" onclick="switchTab('risk')">壓力測試</div>
+</div></div><!-- end fixed-top -->
+
+<div class="content">
+
+<!-- TAB 1: HOLDINGS -->
+<div class="tab-panel active" id="tab-holdings">
+  <div id="expSummary" style="margin-top:8px;border-radius:12px;overflow:hidden;border:1px solid var(--border)"></div>
+  <div id="pnlSummary" style="display:none;background:var(--surface);border-radius:14px;padding:18px;margin-top:8px;border:1px solid var(--border)">
+    <div style="font-size:13px;color:var(--gold2);letter-spacing:2px;margin-bottom:14px;font-weight:600">總損益</div>
+
+    <!-- Hero: P&L 大字 -->
+    <div style="text-align:center;padding:4px 0 4px">
+      <div id="totalPnl" style="font-family:'Space Mono',monospace;font-size:30px;font-weight:700;line-height:1;letter-spacing:-1px">—</div>
+      <div id="totalPnlPctBadge" style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;margin-top:8px">—</div>
+    </div>
+    <!-- Hidden refs (kept so JS doesn't error) -->
+    <div style="display:none">
+      <span id="totalCost"></span><span id="totalCurrentPnl"></span>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;margin-bottom:2px">
+  <div class="section-label" style="margin:0">群組配置</div>
+  <button onclick="toggleAllGroups()" id="toggleAllBtn"
+    style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;font-weight:700;
+    color:var(--gold2);background:rgba(232,201,122,.12);border:1px solid rgba(232,201,122,.4);
+    border-radius:8px;padding:6px 14px;cursor:pointer;transition:all .2s;white-space:nowrap">
+    全部收合 ▲
+  </button>
+</div>
+  <div id="groupCards"></div>
+
+  
+  
+  
+
+  <!-- Add asset -->
+  <div class="add-panel" style="margin-top:12px;padding:0;overflow:hidden">
+    <div onclick="toggleAddPanel()" style="display:flex;align-items:center;justify-content:space-between;padding:14px 14px;cursor:pointer">
+      <div class="add-panel-title" style="margin-bottom:0">＋ 新增資產</div>
+      <span id="addPanelToggle" style="font-size:12px;color:var(--gold);transition:transform .2s">▼</span>
+    </div>
+    <div id="addPanelBody" style="display:none;padding:0 14px 14px">
+      <div class="add-row">
+        <div class="input-group">
+          <div class="input-label">代號</div>
+          <input class="input-field" id="newTicker" placeholder="NVDA" style="text-transform:uppercase">
+        </div>
+        <div class="input-group">
+          <div class="input-label">名稱</div>
+          <input class="input-field" id="newName" placeholder="選填">
+        </div>
+        <div class="input-group" style="max-width:80px">
+          <div class="input-label">加入群組</div>
+          <select class="input-field" id="newGroup" style="color:var(--text)"></select>
+        </div>
+      </div>
+      <div class="add-row">
+        <div class="input-group">
+          <div class="input-label">現有金額</div>
+          <input class="input-field" id="newCurrent" type="number" inputmode="numeric" placeholder="0">
+        </div>
+        <div class="input-group">
+          <div class="input-label">群組內%</div>
+          <input class="input-field" id="newPct" type="number" inputmode="numeric" placeholder="0">
+        </div>
+        <div class="input-group" style="max-width:64px">
+          <div class="input-label">槓桿</div>
+          <input class="input-field" id="newLeverage" type="number" inputmode="decimal" step="0.5" placeholder="1">
+        </div>
+        <div class="input-group" style="max-width:64px">
+          <div class="input-label">年化%</div>
+          <input class="input-field" id="newRate" type="number" inputmode="decimal" placeholder="0">
+        </div>
+      </div>
+      <button class="add-btn" onclick="addAsset()">＋ 加入</button>
+    </div>
+  </div>
+
+  <div class="withdraw-card" style="margin-top:8px">
+    <div class="withdraw-title">提領金額</div>
+    <input class="input-field" id="withdrawInput" type="number" inputmode="numeric"
+      placeholder="0" value="0" oninput="updateCalc()" style="font-size:18px;width:100%;background:var(--surface2)">
+  </div>
+  <button class="calc-btn" onclick="saveData();switchTab('rebalance')">計算再平衡 →</button>
+
+  <div class="section-label" style="margin-top:20px">配置圓餅圖</div>
+  <div class="action-card">
+    <div class="chart-wrap">
+      <div class="donut-holder">
+        <svg class="donut" viewBox="0 0 36 36" id="donutSvg"></svg>
+        <div class="donut-center" id="donutCenter">
+          <div class="donut-center-label">總資產</div>
+          <div class="donut-center-value" id="donutCenterValue">—</div>
+        </div>
+      </div>
+      <div class="donut-legend" id="donutLegend"></div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 2: REBALANCE -->
+<div class="tab-panel" id="tab-rebalance">
+  <div class="summary-grid" id="summaryGrid"></div>
+
+  <div class="section-label">第一層：群組再平衡</div>
+  <div id="layer1Cards"></div>
+
+  <div class="section-label">第二層：群組內部再平衡</div>
+  <div id="layer2Cards"></div>
+</div>
+
+<!-- TAB 3: RETURNS -->
+<div class="tab-panel" id="tab-returns">
+  <div class="section-label">年化報酬率設定</div>
+  <div id="returnRateCards"></div>
+  <div class="section-label" style="margin-top:16px">預估年報酬</div>
+  <div class="action-card">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;padding-bottom:10px;margin-bottom:8px;border-bottom:1px solid var(--border)">
+      <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px">資產</span>
+      <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-align:center;letter-spacing:1px">曝險 / 年化</span>
+      <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-align:right;letter-spacing:1px">預估年獲利</span>
+    </div>
+    <div id="returnRows"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;padding:10px 0;border-bottom:1px solid var(--border);align-items:center">
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px">總曝險</div>
+      <div style="text-align:center;font-family:'Space Mono',monospace;font-size:14px;font-weight:700" id="retExpPct">—</div>
+      <div style="text-align:right;font-family:'Space Mono',monospace;font-size:11px;color:var(--muted)" id="retExpAmt">—</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;padding-top:12px;margin-top:4px;border-top:1px solid var(--gold);align-items:center">
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--gold);letter-spacing:1px">加權年化</div>
+      <div style="text-align:center;font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--gold)" id="weightedRate">—</div>
+      <div style="text-align:right;font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--green)" id="totalProfit">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 4: RISK -->
+<div class="tab-panel" id="tab-risk">
+  <div class="section-label">歷史衰退年跌幅模擬</div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+    依你的<b style="color:var(--text)">目標配置</b>加權估算各衰退年跌幅。<br>
+    正二現金（0×）在任何年份跌幅皆為 0，是緩衝關鍵。
+  </div>
+  <div id="riskCards"></div>
+  <div class="section-label" style="margin-top:20px">正常年份波動範圍</div>
+  <div class="action-card" id="normalCard"></div>
+  <div class="section-label" style="margin-top:20px">風險指標</div>
+  <div class="summary-grid" id="riskMetrics"></div>
+</div>
+
+</div><!-- end content -->
+
+<script>
+// ── Palette ───────────────────────────────────────────────────────────────────
+// Update slider gradient fill based on current value
+function updateSliderFill(slider){
+  if(!slider) return;
+  const min = parseFloat(slider.min)||0;
+  const max = parseFloat(slider.max)||100;
+  const val = parseFloat(slider.value)||0;
+  const ratio = (max>min) ? (val - min) / (max - min) : 0;
+  // Account for thumb width: thumb centre travels from (thumbW/2) to (trackW - thumbW/2)
+  const thumbW = 28;
+  const trackW = slider.offsetWidth || 300;
+  const centerPx = (thumbW/2) + ratio * (trackW - thumbW);
+  const pct = (centerPx / trackW * 100).toFixed(2)+'%';
+  slider.style.setProperty('--val', pct);
+}
+// Apply to all sliders on input
+document.addEventListener('input', e=>{
+  if(e.target && e.target.type==='range') updateSliderFill(e.target);
+});
+
+const PALETTE = ['#c9a84c','#4caf82','#5b9bd5','#e05555','#9b7fd4',
+                 '#e8944a','#4bc4cf','#b5cc3f','#d45b8a','#7ec8a4'];
+function colorFor(i){ return PALETTE[i % PALETTE.length]; }
+
+// ── Group colors ──────────────────────────────────────────────────────────────
+const GROUP_COLORS = { '美股': '#5b9bd5', '台股': '#c9a84c' };
+function groupColor(gid){
+  const g = groups.find(x=>x.id===gid);
+  return g ? (GROUP_COLORS[g.name] || '#888') : '#888';
+}
+
+// ── Data model ────────────────────────────────────────────────────────────────
+let uid = 0, gid = 0;
+const groupOpenState = {}; // { groupId: true/false } — true = open
+// Lock tracking for sliders
+const lockedInner  = {}; // { groupId: Set<assetId> }
+const lockedGroups = new Set(); // Set<groupId>
+let exchangeRate = Number(localStorage.getItem('exchangeRate')) || 32;
+function makeGroup(name, pct, currency) { return { id: ++gid, name, pct, currency: currency||'TWD' }; }
+function makeAsset(groupId, ticker, name, innerPct, current, rate, leverage) {
+  return { id: ++uid, groupId, ticker, name,
+           innerPct: innerPct||0, current: current||0,
+           rate: rate||0, leverage: leverage!=null?leverage:1,
+           shares: 0, lastPrice: null, lastPriceAt: null,
+           costBasis: 0 };
+}
+
+let groups = [
+  makeGroup('美股', 50, 'USD'),
+  makeGroup('台股', 50, 'TWD'),
+];
+let assets = [
+  makeAsset(1, 'VT',      'Vanguard全球股票',  40, 5374336, 10.58, 1),
+  makeAsset(1, 'QQQ',     'Invesco那斯達克100', 40, 0,       21.9,  1),
+  makeAsset(1, 'SMH',     'VanEck半導體ETF',   20, 1940760, 31.3,  1),
+  makeAsset(2, '00631L',  '元大台灣50正2',      50, 2644056, 45.5,  2),
+  makeAsset(2, '正二現金', '備用加碼金',         50, 1954866, 0,     0),
+];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmt(n){ return Math.round(n).toLocaleString('zh-TW'); }
+
+
+function totalCurrent(){ return assets.reduce((s,a)=>s+a.current,0); }
+function withdraw(){ return Number(document.getElementById('withdrawInput').value)||0; }
+function assetIndex(id){ return assets.findIndex(a=>a.id===id); }
+function groupIndex(id){ return groups.findIndex(g=>g.id===id); }
+function assetsInGroup(gid){ return assets.filter(a=>a.groupId===gid); }
+
+// Effective % of total for an asset
+// Normalize inner pcts so group always sums to its full group.pct
+function assetEffectivePct(a){
+  const g = groups.find(x=>x.id===a.groupId);
+  if (!g) return 0;
+  const gAssets = assetsInGroup(g.id);
+  const innerSum = gAssets.reduce((s,x)=>s+x.innerPct, 0);
+  // If inner pcts don't sum to 100, normalize proportionally
+  const normalizedInner = innerSum > 0 ? a.innerPct / innerSum * 100 : 0;
+  return g.pct * normalizedInner / 100;
+}
+
+// ── Build group cards (once) ──────────────────────────────────────────────────
+function buildGroupCards(){
+  // Reset all locks on rebuild
+  Object.keys(lockedInner).forEach(k=>delete lockedInner[k]);
+  lockedGroups.clear();
+  // Hide all lock indicators
+  document.querySelectorAll('[id^="lock-"]').forEach(el=>{ if(el.id.match(/^lock-\d+$/)) el.style.display='none'; });
+  const container = document.getElementById('groupCards');
+  container.innerHTML = '';
+  groups.forEach(g => {
+    const gc = document.createElement('div');
+    gc.className = 'group-card';
+    gc.id = 'gcard-'+g.id;
+    gc.style.border = '1px solid '+groupColor(g.id)+'44';
+    gc.style.background = 'rgba('+hexToRgb(groupColor(g.id))+',0.04)';
+    gc.draggable = true;
+    gc.addEventListener('dragstart', e=>{
+      // Only allow drag if it started from the drag handle
+      const handle = e.target.closest ? e.target.closest('.grp-drag-handle') : null;
+      const isHandle = handle || (e.target && e.target.classList && e.target.classList.contains('grp-drag-handle'));
+      if(!isHandle){ e.preventDefault(); return; }
+      e.dataTransfer.setData('groupId', g.id);
+      gc.style.opacity='0.5';
+    });
+    gc.addEventListener('dragend', e=>{ gc.style.opacity='1'; });
+    gc.addEventListener('dragover', e=>{ e.preventDefault(); gc.style.outline='2px solid '+groupColor(g.id); });
+    gc.addEventListener('dragleave', e=>{ gc.style.outline='none'; });
+    gc.addEventListener('drop', e=>{
+      e.preventDefault(); gc.style.outline='none';
+      const fromId = Number(e.dataTransfer.getData('groupId'));
+      const toId = g.id;
+      if(fromId === toId) return;
+      const fromIdx = groups.findIndex(x=>x.id===fromId);
+      const toIdx   = groups.findIndex(x=>x.id===toId);
+      if(fromIdx<0||toIdx<0) return;
+      const [moved] = groups.splice(fromIdx,1);
+      groups.splice(toIdx,0,moved);
+      // State is already saved in groupOpenState — buildGroupCards will restore it
+      buildGroupCards(); updateCalc();
+    });
+    gc.innerHTML = `
+      <div class="group-header" onclick="toggleGroup(${g.id})" style="flex-direction:column;align-items:stretch;gap:4px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="grp-drag-handle" style="cursor:grab;font-size:14px;color:var(--muted);flex-shrink:0;padding:2px 4px;border-radius:4px" title="拖拉換序">⠿</div>
+          <div style="width:10px;height:10px;border-radius:3px;background:${groupColor(g.id)};flex-shrink:0"></div>
+          <div class="group-label" style="color:${groupColor(g.id)};font-size:15px">${g.name}</div>
+          <span class="group-toggle" id="gtoggle-${g.id}" style="margin-left:auto">▼</span>
+        </div>
+        <div style="text-align:center;padding:6px 0 2px">
+          <div style="font-family:'Space Mono',monospace;font-size:30px;font-weight:700;color:${groupColor(g.id)};line-height:1" id="gpct-${g.id}">${g.pct}%</div>
+          <div style="font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);margin-top:5px" id="gamt-${g.id}"></div>
+        </div>
+      </div>
+      <div class="group-body" id="gbody-${g.id}">
+        <!-- Group-level pct slider -->
+        <div style="padding:0 2px 12px;border-bottom:1px solid var(--border);margin-bottom:10px">
+          <input type="range" class="grp-slider" id="gslider-${g.id}" min="0" max="100" step="1" value="${g.pct}"
+            oninput="syncGroupSlider(${g.id}, this.value)">
+        </div>
+        ${g.currency==='USD' ? `
+        <div class="rate-row" id="rateRow-${g.id}">
+          <span class="rate-flag">🇺🇸</span>
+          <span class="rate-label">USD / TWD</span>
+          <span class="rate-label" style="color:#5b9bd5">1 USD =</span>
+          <input class="rate-input" id="rateInput-${g.id}" type="number"
+            inputmode="decimal" step="0.1" value="${exchangeRate}"
+            oninput="updateExchangeRate(this.value)">
+          <span class="rate-label" style="color:#5b9bd5">TWD</span>
+          <button onclick="fetchRate()" style="margin-left:auto;font-family:'Space Mono',monospace;font-size:9px;color:#5b9bd5;background:rgba(91,155,213,.1);border:1px solid rgba(91,155,213,.3);border-radius:6px;padding:3px 8px;cursor:pointer;letter-spacing:1px;">更新</button>
+        </div>` : ''}
+        <!-- Mini summary row — always visible -->
+        <div id="gmini-${g.id}" style="margin-bottom:10px"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div class="section-label" style="margin:0;font-size:9px">持倉資產</div>
+          <button onclick="toggleGroupAssets(${g.id})" id="grpToggleBtn-${g.id}"
+            style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;font-weight:700;
+            color:${groupColor(g.id)};background:${groupColor(g.id)}1f;border:1px solid ${groupColor(g.id)}66;
+            border-radius:8px;padding:5px 12px;cursor:pointer;white-space:nowrap">
+            收合 ▲
+          </button>
+        </div>
+        <div id="gassets-${g.id}"></div>
+        <div id="quickRebal-${g.id}" style="display:none;margin-top:8px"></div>
+      </div>`;
+    // Restore open/closed state (default open if not set)
+    const isOpen = groupOpenState[g.id] !== false; // default open
+    const bodyEl = gc.querySelector('#gbody-'+g.id);
+    const togEl  = gc.querySelector('#gtoggle-'+g.id);
+    if(bodyEl){ bodyEl.style.display = isOpen ? 'block' : 'none'; }
+    if(togEl)  { togEl.style.transform = isOpen ? '' : 'rotate(-90deg)'; }
+    container.appendChild(gc);
+  });
+  buildAssetCards();
+}
+
+function hexToRgb(hex){
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return r+','+g+','+b;
+}
+
+function toggleGroup(id){
+  const body = document.getElementById('gbody-'+id);
+  const tog  = document.getElementById('gtoggle-'+id);
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  if(tog) tog.style.transform = open ? 'rotate(-90deg)' : '';
+  groupOpenState[id] = !open; // save state
+}
+
+// ── Build asset cards inside groups ──────────────────────────────────────────
+function buildAssetCards(){
+  groups.forEach(g => {
+    const container = document.getElementById('gassets-'+g.id);
+    if(!container) return;
+    container.innerHTML = '';
+    assetsInGroup(g.id).forEach((a,ai) => {
+      const color = colorFor(assets.findIndex(x=>x.id===a.id));
+      const g_obj = groups.find(x=>x.id===a.groupId);
+      const isUSD = g_obj && g_obj.currency === 'USD';
+      const card = document.createElement('div');
+      card.className = 'asset-card';
+      card.id = 'card-'+a.id;
+      card.innerHTML = `
+        <div class="asset-header">
+          <div class="asset-dot" style="background:${color}"></div>
+          <div class="asset-titles">
+            <div class="asset-ticker">${a.ticker}</div>
+            <div class="asset-name">${a.name||''}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-right:6px">
+            <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted)">群組內</span>
+            <span class="asset-pct-badge" id="badge-${a.id}">${a.innerPct}%</span>
+          </div>
+          <button class="del-btn" onclick="removeAsset(${a.id})">×</button>
+        </div>
+        <div class="asset-row">
+          <div class="input-group">
+            <div class="input-label">${isUSD ? '金額 (USD $)' : '現有金額'}</div>
+            <input class="input-field" id="cur-${a.id}" type="number" inputmode="decimal"
+              value="${isUSD ? (a.current/exchangeRate).toFixed(0) : a.current}" placeholder="0"
+              style="${isUSD ? 'border-color:rgba(91,155,213,.4)' : ''}">
+            ${isUSD ? `<div class="usd-hint" id="twd-${a.id}">≈ NT$ ${Math.round(a.current).toLocaleString('zh-TW')}</div>` : ''}
+          </div>
+          <div class="input-group" style="max-width:64px">
+            <div class="input-label">槓桿</div>
+            <input class="input-field" id="lev-${a.id}" type="number" inputmode="decimal" step="0.5" min="0" value="${a.leverage}" placeholder="1">
+          </div>
+        </div>
+        <div class="slider-row">
+          <div class="slider-labels">
+            <span class="slider-lbl">群組內比例 <span id="lock-${a.id}" onclick="unlockInner(${a.id})" style="color:var(--gold2);font-size:10px;display:none;cursor:pointer"> 🔒已鎖定 (點此解鎖)</span></span>
+            <span class="slider-val" id="badge2-${a.id}">${a.innerPct}%</span>
+          </div>
+          <input type="range" id="pctSlider-${a.id}" min="0" max="100" step="1" value="${a.innerPct}"
+            oninput="syncPctSlider(${a.id}, this.value)">
+        </div>
+
+        <!-- Shares + Price row -->
+        ${(a.leverage!=null?a.leverage:1)!==0 ? `
+        <div style="margin-top:8px;display:flex;align-items:center;gap:6px">
+          <div style="flex:1;min-width:0">
+            <div class="input-label">持股數量</div>
+            <input class="input-field" id="shares-${a.id}" type="number"
+              inputmode="decimal" step="any" min="0"
+              value="${a.shares||''}" placeholder="0"
+              style="text-align:left;padding:8px 14px 8px 10px;font-size:13px">
+          </div>
+          <div style="flex:1.5;min-width:0">
+            <div class="input-label">目前股價</div>
+            <div class="price-row" style="margin:0;padding:6px 10px">
+              <div id="priceDisplay-${a.id}" style="flex:1;font-size:11px">
+                <span style="color:var(--muted)">— 點↻</span>
+              </div>
+              <button class="price-fetch-btn" id="pricebtn-${a.id}"
+                onclick="fetchOneAsset(${a.id})" style="width:22px;height:22px;font-size:12px">↻</button>
+            </div>
+          </div>
+        </div>` : ''}
+        <!-- Cost basis + P&L -->
+        <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
+          <div style="flex:1;min-width:0">
+            <div class="input-label">成本 ${isUSD?'(USD)':'(NT$)'}</div>
+            <input class="input-field" id="cost-${a.id}" type="number" inputmode="decimal" step="any"
+              value="${a.costBasis>0 ? (isUSD ? a.costBasis.toFixed(0) : a.costBasis) : ''}"
+              placeholder="0" style="padding:8px 10px;font-size:13px;${isUSD?'border-color:rgba(91,155,213,.4)':''}">
+          </div>
+          <div style="flex:1.2;min-width:0;padding:10px 12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)">
+            <div style="font-size:10px;color:var(--text2);margin-bottom:5px;letter-spacing:1px">損益</div>
+            <div id="pnl-${a.id}" style="font-size:12px;font-weight:700">—</div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+          <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted)">
+            曝險 <span id="exp-${a.id}" style="font-size:11px;font-weight:700"></span>
+          </div>
+          <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--gold2)" id="tgt-${a.id}"></div>
+        </div>`;
+      container.appendChild(card);
+      // Restore price and P&L display for this asset
+      setTimeout(()=>{ updatePriceDisplay(a.id); updatePnlDisplay(a.id); }, 0);
+
+      // cur- and lev- need both input+change events
+        ['input','change'].forEach(evt => {
+          document.getElementById('cur-'+a.id).addEventListener(evt, function(){
+            const idx = assetIndex(a.id); if(idx<0) return;
+            const raw = Number(this.value)||0;
+            const g_l = groups.find(x=>x.id===assets[idx].groupId);
+            const isUSDGroup = g_l && g_l.currency==='USD';
+            if(isUSDGroup){
+              assets[idx].current = Math.round(raw * (exchangeRate>0 ? exchangeRate : 32));
+            } else {
+              assets[idx].current = raw;
+            }
+            const twdEl = document.getElementById('twd-'+a.id);
+            if(twdEl) twdEl.textContent = '≈ NT$ '+Math.round(assets[idx].current).toLocaleString('zh-TW');
+            updateCalc();
+          });
+          document.getElementById('lev-'+a.id).addEventListener(evt, function(){
+            const idx = assetIndex(a.id); if(idx<0) return;
+            const v = this.value.trim()!==''?Number(this.value):1;
+            assets[idx].leverage = v;
+            const li2 = document.getElementById('levInput2-'+a.id);
+            if(li2 && li2!==document.activeElement) li2.value = v;
+            updateCalc();
+          });
+        });
+        // cost/shares/levInput2 only need 'input' — registered ONCE outside forEach
+        const costEl = document.getElementById('cost-'+a.id);
+        if(costEl){
+          costEl.addEventListener('input', function(){
+            const idx = assetIndex(a.id); if(idx<0) return;
+            assets[idx].costBasis = Number(this.value)||0;
+            updatePnlDisplay(a.id);
+            updateCalc();
+          });
+          costEl.addEventListener('change', function(){
+            const idx = assetIndex(a.id); if(idx<0) return;
+            assets[idx].costBasis = Number(this.value)||0;
+            updatePnlDisplay(a.id);
+            updateCalc();
+          });
+          costEl.addEventListener('blur', ()=>{ saveData(); });
+        }
+        const sharesEl = document.getElementById('shares-'+a.id);
+        if(sharesEl){
+          sharesEl.addEventListener('input', function(){
+            const idx = assetIndex(a.id); if(idx<0) return;
+            const shares = parseFloat(this.value)||0;
+            assets[idx].shares = shares;
+            if(shares > 0 && assets[idx].lastPrice){
+              const g = groups.find(x=>x.id===assets[idx].groupId);
+              const isUSD = g && g.currency==='USD';
+              assets[idx].current = isUSD
+                ? Math.round(shares * assets[idx].lastPrice * (exchangeRate||32))
+                : Math.round(shares * assets[idx].lastPrice);
+              const curEl = document.getElementById('cur-'+a.id);
+              if(curEl && curEl !== document.activeElement)
+                curEl.value = isUSD ? (assets[idx].current/(exchangeRate||32)).toFixed(0) : assets[idx].current;
+              const twdEl_s = document.getElementById('twd-'+a.id);
+              if(twdEl_s) twdEl_s.textContent='≈ NT$ '+assets[idx].current.toLocaleString('zh-TW');
+            }
+            updateCalc();
+          });
+          // iOS safety: save on keyboard dismiss and blur
+          sharesEl.addEventListener('change', function(){
+            const idx = assetIndex(a.id); if(idx<0) return;
+            assets[idx].shares = parseFloat(this.value)||0;
+            saveData();
+          });
+          sharesEl.addEventListener('blur', ()=>{ saveData(); });
+        }
+        const levInput2El = document.getElementById('levInput2-'+a.id);
+        if(levInput2El){
+          ['input','change'].forEach(evt2=>{
+            levInput2El.addEventListener(evt2, function(){
+              const idx = assetIndex(a.id); if(idx<0) return;
+              const v = this.value.trim()!==''?Number(this.value):1;
+              assets[idx].leverage = v;
+              const li1 = document.getElementById('lev-'+a.id);
+              if(li1 && li1!==document.activeElement) li1.value = v;
+              updateCalc();
+            });
+          });
+        }
+    });
+  });
+  // Re-init slider gradient fills after rebuild (give layout time to compute offsetWidth)
+  setTimeout(initSliderFills, 30);
+}
+
+// ── Build returns rate cards ──────────────────────────────────────────────────
+function buildReturnCards(){
+  const container = document.getElementById('returnRateCards');
+  container.innerHTML = '';
+  assets.forEach((a,i) => {
+    const color = colorFor(i);
+    const card = document.createElement('div');
+    card.className = 'asset-card';
+    card.id = 'rcard-'+a.id;
+    card.style.marginBottom = '8px';
+    card.innerHTML = `
+      <div class="asset-header" style="margin-bottom:8px">
+        <div class="asset-dot" style="background:${color}"></div>
+        <div class="asset-ticker">${a.ticker}</div>
+        <span style="margin-left:auto;font-size:11px;color:var(--muted)" id="rtgt-${a.id}"></span>
+      </div>
+      <div class="input-group">
+        <div class="input-label">年化報酬率 (%)</div>
+        <input class="input-field" id="rate-${a.id}" type="number" inputmode="decimal" step="0.1" value="${a.rate}" placeholder="0">
+      </div>`;
+    container.appendChild(card);
+    document.getElementById('rate-'+a.id).addEventListener('input', function(){
+      const idx = assetIndex(a.id); if(idx<0) return;
+      assets[idx].rate = Number(this.value)||0; refreshReturns();
+    });
+  });
+}
+
+// ── Slider sync ───────────────────────────────────────────────────────────────
+function syncGroupSlider(id, val){
+  const idx = groupIndex(id); if(idx<0) return;
+  const v = Number(val);
+  groups[idx].pct = v;
+
+  // Track locked groups
+  lockedGroups.add(id);
+
+  const siblings = groups.filter(g=>g.id!==id);
+  const locked   = siblings.filter(g=>lockedGroups.has(g.id));
+  const unlocked = siblings.filter(g=>!lockedGroups.has(g.id));
+
+  const lockedSum = locked.reduce((s,g)=>s+g.pct, 0);
+  const remaining = 100 - v - lockedSum;
+
+  const targets = {};
+  if(unlocked.length > 0){
+    const unlockedSum = unlocked.reduce((s,g)=>s+g.pct, 0);
+    let allocated = 0;
+    unlocked.forEach((g, i)=>{
+      let newPct;
+      if(i === unlocked.length-1){
+        newPct = Math.max(0, remaining - allocated);
+      } else {
+        newPct = unlockedSum>0
+          ? Math.max(0, Math.round(g.pct/unlockedSum*remaining))
+          : Math.max(0, Math.round(remaining/unlocked.length));
+        allocated += newPct;
+      }
+      targets[g.id] = newPct;
+    });
+  } else {
+    if(locked.length > 0){
+      targets[locked[0].id] = Math.max(0, locked[0].pct + remaining);
+    }
+  }
+
+  // Apply
+  Object.entries(targets).forEach(([gidStr, newPct])=>{
+    const gi = groupIndex(Number(gidStr)); if(gi<0) return;
+    groups[gi].pct = newPct;
+    const osl  = document.getElementById('gslider-'+gidStr);
+    const ogpt = document.getElementById('gpct-'+gidStr);
+    if(osl && osl!==document.activeElement){ osl.value=newPct; updateSliderFill(osl); }
+    if(ogpt) ogpt.textContent = newPct+'%';
+  });
+
+  const b2 = document.getElementById('gpct-'+id);
+  const thisSl = document.getElementById('gslider-'+id);
+  if(b2) b2.textContent = v+'%';
+  if(thisSl) updateSliderFill(thisSl);
+  updateCalc();
+}
+
+
+function unlockInner(id){
+  const a = assets[assetIndex(id)]; if(!a) return;
+  const gid = a.groupId;
+  if(lockedInner[gid]) lockedInner[gid].delete(id);
+  const lockEl = document.getElementById('lock-'+id);
+  if(lockEl) lockEl.style.display = 'none';
+}
+
+function syncPctSlider(id, val){
+  const idx = assetIndex(id); if(idx<0) return;
+  const v = Number(val);
+
+  const a = assets[idx];
+  const gid = a.groupId;
+  const groupAssets = assetsInGroup(gid);
+
+  // Track locked sliders per group
+  if(!lockedInner[gid]) lockedInner[gid] = new Set();
+  lockedInner[gid].add(id);
+  // Show lock indicator for this asset
+  const lockEl = document.getElementById('lock-'+id);
+  if(lockEl) lockEl.style.display = 'inline';
+
+  const siblings = groupAssets.filter(x=>x.id!==id);
+  const locked   = siblings.filter(x=>lockedInner[gid].has(x.id));
+  const unlocked = siblings.filter(x=>!lockedInner[gid].has(x.id));
+
+  const lockedSum  = locked.reduce((s,x)=>s+x.innerPct, 0);
+  const maxAllowed = 100 - lockedSum; // can't exceed remaining room
+
+  let effV = v;
+  const targets = {};
+  if(unlocked.length > 0){
+    // There are unlocked siblings to absorb — distribute remaining to them
+    const remaining = Math.max(0, 100 - v - lockedSum);
+    const unlockedSum = unlocked.reduce((s,x)=>s+x.innerPct, 0);
+    let allocated = 0;
+    unlocked.forEach((sib, i)=>{
+      let newPct;
+      if(i === unlocked.length-1){
+        newPct = Math.max(0, remaining - allocated);
+      } else {
+        newPct = unlockedSum>0
+          ? Math.max(0, Math.round(sib.innerPct/unlockedSum*remaining))
+          : Math.max(0, Math.round(remaining/unlocked.length));
+        allocated += newPct;
+      }
+      targets[sib.id] = newPct;
+    });
+  } else {
+    // ALL siblings locked — locked ones NEVER move.
+    // Cap this slider at the remaining room so the sum stays 100 without touching locked.
+    effV = Math.min(v, maxAllowed);
+  }
+
+  // Apply capped value to this asset
+  assets[idx].innerPct = effV;
+
+  // Apply targets to DOM + assets
+  Object.entries(targets).forEach(([sibId, newPct])=>{
+    const si = assetIndex(Number(sibId)); if(si<0) return;
+    assets[si].innerPct = newPct;
+    const sSlider = document.getElementById('pctSlider-'+sibId);
+    const sBadge  = document.getElementById('badge-'+sibId);
+    const sBadge2 = document.getElementById('badge2-'+sibId);
+    if(sSlider && sSlider!==document.activeElement){ sSlider.value=newPct; updateSliderFill(sSlider); }
+    if(sBadge)  sBadge.textContent  = newPct+'%';
+    if(sBadge2) sBadge2.textContent = newPct+'%';
+  });
+
+  // Update this slider (use effV — may be capped if all siblings locked)
+  const inp    = document.getElementById('badge-'+id);
+  const b2     = document.getElementById('badge2-'+id);
+  const thisSl = document.getElementById('pctSlider-'+id);
+  if(inp) inp.textContent = effV+'%';
+  if(b2)  b2.textContent  = effV+'%';
+  if(thisSl){
+    // If value was capped, snap the slider back to the allowed max
+    if(effV !== v) thisSl.value = effV;
+    updateSliderFill(thisSl);
+  }
+  updateCalc();
+}
+
+
+// ── Refresh Holdings ──────────────────────────────────────────────────────────
+function refreshHoldings(){
+  const total = totalCurrent();
+  document.getElementById('totalDisplay').textContent = '$'+fmt(total);
+  const w = Math.min(withdraw(), total); // clamp: cannot withdraw more than total
+  const after = Math.max(0, total - w);
+
+  // Current exposure (actual holdings)
+  const totalExpCur = assets.reduce((s,a)=>s+a.current*(a.leverage!=null?a.leverage:1),0);
+
+  // Target exposure (after rebalance) — reflects slider changes immediately
+  const wExp = Math.min(withdraw(), total);
+  const afterExp = Math.max(0, total - wExp);
+  const totalExp = assets.reduce((s,a)=>{
+    const lev = a.leverage!=null?a.leverage:1;
+    const tgt = afterExp * assetEffectivePct(a) / 100;
+    return s + tgt * lev;
+  }, 0);
+  const totalExpPct = afterExp>0?(totalExp/afterExp*100):0;
+
+  // Per-asset
+  assets.forEach((a,i) => {
+    const lev = a.leverage!=null?a.leverage:1;
+    const effPct = assetEffectivePct(a);
+    const tgt = Math.round(after * effPct / 100);
+    const exposure = a.current * lev;
+    // expPct: target exposure as % of after (reflects slider changes immediately)
+    const tgtAmt = afterExp * effPct / 100;
+    const tgtExposure = tgtAmt * lev;
+    const expPct = afterExp>0 ? (tgtExposure/afterExp*100) : 0;
+
+    const badge  = document.getElementById('badge-'+a.id);
+    const badge2 = document.getElementById('badge2-'+a.id);
+    const tgtEl  = document.getElementById('tgt-'+a.id);
+    const expEl  = document.getElementById('exp-'+a.id);
+    // Update TWD hint only (don't touch input value — buildAssetCards handles it)
+    const twdHint = document.getElementById('twd-'+a.id);
+    if(twdHint) twdHint.textContent = '≈ NT$ '+Math.round(a.current).toLocaleString('zh-TW');
+    const ps     = document.getElementById('pctSlider-'+a.id);
+
+
+    const psActive = ps&&(ps===document.activeElement);
+    if(badge)         badge.textContent  = a.innerPct+'%';
+    if(badge2&&!psActive) badge2.textContent = a.innerPct+'%';
+    if(ps&&!psActive) ps.value = a.innerPct;
+    if(tgtEl) tgtEl.textContent = '目標 → $'+fmt(tgt);
+    if(expEl){
+      if(lev===0){ expEl.textContent='現金 (0×)'; expEl.style.color='var(--muted)'; }
+      else{
+        expEl.textContent = expPct.toFixed(1)+'% 曝險 ('+lev+'×)';
+        expEl.style.color = lev>1?'var(--red)':'var(--gold2)';
+      }
+    }
+  });
+
+  // Group labels
+  groups.forEach(g => {
+    const gAmt = assetsInGroup(g.id).reduce((s,a)=>s+a.current,0);
+    const gsl  = document.getElementById('gslider-'+g.id);
+    const gpct = document.getElementById('gpct-'+g.id);
+    const gamt = document.getElementById('gamt-'+g.id);
+    const gsActive = gsl&&(gsl===document.activeElement);
+    if(gsl&&!gsActive) gsl.value = g.pct;
+    if(gpct) gpct.textContent = g.pct+'%';
+    if(gamt) gamt.textContent = '$'+fmt(gAmt);
+
+
+
+    // Quick rebalance hint
+    renderQuickRebal(g.id, after);
+  });
+
+
+
+  // ── Drift data collection ──────────────────────────────────────────────────
+  const DRIFT_THRESHOLD = 10;
+  const driftData = [];
+  assets.forEach(a=>{
+    const targetPct = assetEffectivePct(a);
+    const actualPct = total>0 ? a.current/total*100 : 0;
+    const drift = actualPct - targetPct;
+    if(Math.abs(drift) >= DRIFT_THRESHOLD && targetPct > 0){
+      const gn = groups.find(x=>x.id===a.groupId);
+      driftData.push({ label: a.ticker, drift, groupName: gn?gn.name:'其他' });
+    }
+  });
+
+  // ── Update P&L ────────────────────────────────────────────────────────────
+  assets.forEach(a=>updatePnlDisplay(a.id));
+
+  // ── Combined Exposure + Drift card ────────────────────────────────────────
+  const expSum = document.getElementById('expSummary');
+  if(expSum){
+    const cashPct = assets.filter(a=>(a.leverage!=null?a.leverage:1)===0)
+                          .reduce((s,a)=>s+assetEffectivePct(a),0);
+    const cashAmt = assets.filter(a=>(a.leverage!=null?a.leverage:1)===0)
+                          .reduce((s,a)=>s+a.current, 0);
+    const totalCurExpH = assets.reduce((s,a)=>s+(a.current*(a.leverage!=null?a.leverage:1)),0);
+    const totalTgtExpH = assets.reduce((s,a)=>{
+      const lev = a.leverage!=null?a.leverage:1;
+      return s + (afterExp * assetEffectivePct(a)/100) * lev;
+    },0);
+    const totalTgtExpPct = afterExp>0 ? totalTgtExpH/afterExp*100 : 0;
+    const barW   = Math.min(totalTgtExpPct, 200);
+    const expClr = totalTgtExpPct>120?'var(--red)':totalTgtExpPct>100?'var(--gold)':'var(--green)';
+    const expBg  = totalTgtExpPct>120?'rgba(224,85,85,.05)':totalTgtExpPct>100?'rgba(201,168,76,.05)':'rgba(76,175,130,.04)';
+    const expBdr = totalTgtExpPct>120?'rgba(224,85,85,.35)':totalTgtExpPct>100?'rgba(201,168,76,.35)':'rgba(76,175,130,.25)';
+
+    var driftHtml = '';
+    if(driftData.length > 0){
+      var byGroup = {};
+      driftData.forEach(function(d){
+        if(!byGroup[d.groupName]) byGroup[d.groupName] = [];
+        byGroup[d.groupName].push(d);
+      });
+      var rows = '';
+      Object.keys(byGroup).forEach(function(grpName){
+        var items = byGroup[grpName];
+        var grpClr = grpName.indexOf('美')>=0 ? '#5b9bd5' : 'var(--gold)';
+        var badges = '';
+        items.forEach(function(d){
+          var sign = d.drift>0?'+':'−';
+          var clr  = d.drift>0?'var(--red)':'#5b9bd5';
+          var bg   = d.drift>0?'rgba(224,85,85,.1)':'rgba(91,155,213,.1)';
+          var bdr  = d.drift>0?'rgba(224,85,85,.25)':'rgba(91,155,213,.25)';
+          badges += '<span style="display:inline-flex;align-items:center;gap:3px;background:'+bg+';border:1px solid '+bdr+';border-radius:6px;padding:3px 8px;margin:0 4px 3px 0;white-space:nowrap">'
+            +'<span style="font-size:10px;font-weight:700;color:'+clr+'">'+d.label+'</span>'
+            +'<span style="font-size:10px;color:'+clr+'">'+sign+Math.abs(d.drift).toFixed(1)+'%</span>'
+            +'</span>';
+        });
+        rows += '<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:3px">'
+          +'<span style="color:'+grpClr+';font-size:10px;font-weight:700;width:28px;flex-shrink:0;padding-top:5px">'+grpName+'</span>'
+          +'<div style="flex:1;display:flex;flex-wrap:wrap">'+badges+'</div>'
+          +'</div>';
+      });
+      driftHtml = '<div style="padding:10px 16px 12px;border-top:1px solid rgba(255,255,255,.06)">'
+        +'<div style="display:flex;align-items:center;gap:5px;margin-bottom:7px">'
+          +'<span style="font-size:11px;color:var(--red)">⚠</span>'
+          +'<span style="font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase">偏移 &gt;10%</span>'
+        +'</div>'+rows+'</div>';
+    }
+
+    expSum.style.border = '1px solid '+expBdr;
+    expSum.innerHTML =
+      '<div style="background:'+expBg+';padding:14px 16px 12px">'
+        +'<div style="margin-bottom:12px">'
+          +'<div style="font-size:9px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-bottom:4px">總資產</div>'
+          +'<div style="font-family:\'Space Mono\',monospace;font-size:26px;font-weight:700;color:var(--gold2);letter-spacing:-1px;line-height:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">$'+fmt(total)+'</div>'
+        +'</div>'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(76,175,130,.07);border-radius:8px;border:1px solid rgba(76,175,130,.2);margin-bottom:12px">'
+          +'<div>'
+            +'<div style="font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px">加碼金</div>'
+            +'<div style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:var(--green);line-height:1">$'+fmt(cashAmt)+'</div>'
+          +'</div>'
+          +'<div style="text-align:right">'
+            +'<div style="font-size:9px;color:var(--muted);margin-bottom:2px">佔總資產</div>'
+            +'<div style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:var(--green)">'+cashPct.toFixed(0)+'%</div>'
+          +'</div>'
+        +'</div>'
+        +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">'
+          +'<span style="font-size:11px;color:var(--muted);letter-spacing:2px">總曝險</span>'
+          +'<span style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:'+expClr+'">'+totalTgtExpPct.toFixed(1)+'%</span>'
+        +'</div>'
+        +'<div style="position:relative;height:4px;background:rgba(255,255,255,.07);border-radius:2px;margin-bottom:4px">'
+          +'<div style="position:absolute;left:50%;top:-5px;width:1px;height:14px;background:rgba(255,255,255,.18)"></div>'
+          +'<div style="width:'+Math.min(barW/2,100)+'%;height:100%;border-radius:2px;background:'+expClr+'"></div>'
+        +'</div>'
+        +'<div style="display:flex;justify-content:space-between">'
+          +'<span style="font-size:9px;color:rgba(255,255,255,.18)">0%</span>'
+          +'<span style="font-size:9px;color:rgba(255,255,255,.18)">100%</span>'
+          +'<span style="font-size:9px;color:rgba(255,255,255,.18)">200%</span>'
+        +'</div>'
+      +'</div>'
+      +driftHtml;
+  }
+
+  refreshDonut();
+
+  // P&L Summary
+  const assetsWithCost = assets.filter(a=>a.costBasis>0);
+  const pnlCard = document.getElementById('pnlSummary');
+  if(pnlCard){
+    if(assetsWithCost.length > 0){
+      pnlCard.style.display = 'block';
+      const totalCostAmt = assetsWithCost.reduce((s,a)=>{
+        const g_s = groups.find(x=>x.id===a.groupId);
+        const isUSD_s = g_s && g_s.currency==='USD';
+        return s + (isUSD_s ? Math.round(a.costBasis*(exchangeRate||32)) : a.costBasis);
+      },0);
+      const totalCurAmt  = assetsWithCost.reduce((s,a)=>s+a.current,0);
+      const totalPnlAmt  = totalCurAmt - totalCostAmt;
+      const totalPnlPct  = totalCostAmt>0 ? totalPnlAmt/totalCostAmt*100 : 0;
+      const sign = totalPnlAmt>=0?'+':'';
+      document.getElementById('totalCost').textContent = '$'+fmt(totalCostAmt);
+      document.getElementById('totalCurrentPnl').textContent = '$'+fmt(totalCurAmt);
+      const clr = totalPnlAmt>0?'var(--green)':totalPnlAmt<0?'var(--red)':'var(--muted)';
+      const pnlEl = document.getElementById('totalPnl');
+      pnlEl.textContent = sign+'$'+fmt(Math.abs(totalPnlAmt));
+      pnlEl.style.color = clr;
+      const badgeEl = document.getElementById('totalPnlPctBadge');
+      if(badgeEl){
+        badgeEl.textContent = '('+sign+totalPnlPct.toFixed(1)+'%)';
+        badgeEl.style.color = clr;
+      }
+    } else {
+      pnlCard.style.display = 'none';
+    }
+  }
+}
+
+function refreshDonut(){
+  const svg = document.getElementById('donutSvg');
+  const legend = document.getElementById('donutLegend');
+  const total = totalCurrent();
+  const r=15.5,cx=18,cy=18,circ=2*Math.PI*r;
+  // Small gap between segments (in circumference units)
+  const GAP = circ * 0.012;
+  let offset=0,segH='',legH='',defsH='';
+  // Count segments with non-zero pct for gap logic
+  const segs = assets.map((a,i)=>({a,i,pct: total>0?a.current/total:assetEffectivePct(a)/100})).filter(s=>s.pct>0.0001);
+  segs.forEach(({a,i,pct})=>{
+    const color=colorFor(i);
+    const light=lightenHex(color, 0.28);
+    const gid='grad'+i;
+    // Gradient per segment
+    defsH+=`<linearGradient id="${gid}" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${light}"/>
+      <stop offset="100%" stop-color="${color}"/>
+    </linearGradient>`;
+    const seg=pct*circ;
+    const visible=Math.max(0, seg - GAP);
+    segH+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#${gid})"
+      stroke-width="4" stroke-linecap="round"
+      stroke-dasharray="${visible.toFixed(2)} ${(circ-visible).toFixed(2)}"
+      stroke-dashoffset="${(-offset*circ).toFixed(2)}" />`;
+    offset+=pct;
+    const disp=total>0?(a.current/total*100).toFixed(1):assetEffectivePct(a).toFixed(0);
+    legH+=`<div class="legend-item">
+      <div class="legend-dot" style="background:${color};color:${color}"></div>
+      <span class="legend-ticker">${a.ticker}</span>
+      <span class="legend-pct">${disp}%</span>
+    </div>`;
+  });
+  svg.innerHTML=`<defs>${defsH}</defs>`+segH;
+  legend.innerHTML=legH;
+  // Center total value
+  const cv=document.getElementById('donutCenterValue');
+  if(cv) cv.textContent='$'+fmt(total);
+}
+
+// Lighten a hex color toward white by t (0..1)
+function lightenHex(hex, t){
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  const lr=Math.round(r+(255-r)*t), lg=Math.round(g+(255-g)*t), lb=Math.round(b+(255-b)*t);
+  return '#'+[lr,lg,lb].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+
+// ── Refresh Rebalance ─────────────────────────────────────────────────────────
+function refreshRebalance(){
+  try {
+  const rawW = withdraw();
+  const w = Math.min(rawW, totalCurrent());
+  const after = Math.max(0, totalCurrent() - w);
+  let totalBuy=0, totalSell=0;
+
+  // Guard: no assets
+  if(!assets.length || !groups.length){
+    ['layer1Cards','layer2Cards'].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;font-size:12px">請先在持倉頁新增資產</div>';
+    });
+    return;
+  }
+
+
+  // Compute targets
+  const actionMap = {};
+  assets.forEach(a=>{
+    const effPct = assetEffectivePct(a);
+    const target = Math.round(after * effPct / 100);
+    const diff = target - a.current;
+    if(diff>0) totalBuy+=diff; else totalSell+=Math.abs(diff);
+    actionMap[a.id] = {target, diff};
+  });
+
+  // Summary
+  const curTotal = totalCurrent(); // current holdings total (pre-withdraw)
+  const curExp = assets.reduce((s,a)=>s+a.current*(a.leverage!=null?a.leverage:1),0);
+  // curExpPct uses current total (not after) — apples-to-apples with current holdings
+  const curExpPct = curTotal>0?(curExp/curTotal*100):0;
+  const tgtExp = assets.reduce((s,a)=>{
+    const lev=a.leverage!=null?a.leverage:1;
+    return s+actionMap[a.id].target*lev;
+  },0);
+  // tgtExpPct uses after (post-withdraw) — apples-to-apples with target amounts
+  const tgtExpPct = after>0?(tgtExp/after*100):0;
+  const curExpColor = curExpPct>120?'var(--red)':curExpPct>100?'var(--gold)':'var(--green)';
+  const tgtExpColor = tgtExpPct>120?'var(--red)':tgtExpPct>100?'var(--gold)':'var(--green)';
+  document.getElementById('summaryGrid').innerHTML=`
+    <div class="summary-card"><div class="summary-card-label">提領後總資產</div><div class="summary-card-value">$${fmt(after)}</div></div>
+    <div class="summary-card"><div class="summary-card-label">提領金額</div><div class="summary-card-value ${w>0?'negative':''}">$${fmt(w)}</div></div>
+    <div class="summary-card"><div class="summary-card-label">需賣出</div><div class="summary-card-value negative">$${fmt(totalSell)}</div></div>
+    <div class="summary-card"><div class="summary-card-label">需買入</div><div class="summary-card-value positive">$${fmt(totalBuy)}</div></div>
+    <div class="summary-card"><div class="summary-card-label">現在曝險</div><div class="summary-card-value" style="color:${curExpColor}">${curExpPct.toFixed(1)}%</div></div>
+    <div class="summary-card"><div class="summary-card-label">再平衡後曝險</div><div class="summary-card-value" style="color:${tgtExpColor}">${tgtExpPct.toFixed(1)}%</div></div>`;
+
+  // Layer 1: Group rebalance
+  let l1Html = '';
+  groups.forEach(g=>{
+    const gCur = assetsInGroup(g.id).reduce((s,a)=>s+a.current,0);
+    // Use sum of individual asset targets (which use normalized innerPct via assetEffectivePct)
+    // This ensures Layer1 and Layer2 targets are consistent
+    const gTgt = assetsInGroup(g.id).reduce((s,a)=>s+Math.round(after*assetEffectivePct(a)/100),0);
+    const gDiff = gTgt - gCur;
+    const color = groupColor(g.id);
+    l1Html += `<div class="action-card" style="border-color:${color}44;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:${color};line-height:1.4">${g.name} 群組</div>
+          <div style="margin-top:5px;line-height:1.4">
+            <span style="font-size:10px;color:var(--muted)">目標 </span>
+            <span style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--text)">${g.pct}%</span>
+            <span style="font-size:11px;color:var(--muted)"> → $${fmt(gTgt)}</span>
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;padding-left:8px">
+          <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;line-height:1.4;color:${gDiff>0?'var(--green)':gDiff<0?'var(--red)':'var(--muted)'}">${gDiff>0?'+':gDiff<0?'−':''}$${fmt(Math.abs(gDiff))}</div>
+          <div style="margin-top:5px;line-height:1.4"><span style="font-size:10px;color:var(--muted)">現在 </span><span style="font-family:'Space Mono',monospace;font-size:12px;color:var(--text)">$${fmt(gCur)}</span></div>
+        </div>
+      </div>
+    </div>`;
+  });
+  document.getElementById('layer1Cards').innerHTML = l1Html;
+
+  // Layer 2: Per-group inner rebalance
+  let l2Html = '';
+  groups.forEach(g=>{
+    const color = groupColor(g.id);
+    // Use same basis as actionMap for consistency
+    const gTgt = assetsInGroup(g.id).reduce((s,a)=>s+Math.round(after*assetEffectivePct(a)/100),0);
+    const groupAssets = assetsInGroup(g.id);
+
+    let rowsHtml = '';
+    groupAssets.forEach(a=>{
+      if(!actionMap[a.id]) return; // skip if not in map
+      const {target,diff} = actionMap[a.id];
+      const aColor = colorFor(assets.findIndex(x=>x.id===a.id));
+
+      // ── Shares calculation ──────────────────────────────
+      let sharesHtml = '';
+      if(diff !== 0){
+        const g_rb = groups.find(x=>x.id===a.groupId);
+        const isUSD_rb = g_rb && g_rb.currency==='USD';
+        if(a.lastPrice && a.lastPrice > 0){
+          const priceInTWD = isUSD_rb ? a.lastPrice * (exchangeRate||32) : a.lastPrice;
+          const sharesAmt = Math.abs(diff) / priceInTWD;
+          const sharesDisplay = sharesAmt >= 10
+            ? Math.round(sharesAmt).toLocaleString()
+            : sharesAmt >= 1
+              ? sharesAmt.toFixed(1)
+              : sharesAmt.toFixed(3);
+          const priceDisplay = isUSD_rb
+            ? 'USD $'+a.lastPrice.toFixed(2)
+            : 'NT$ '+a.lastPrice.toLocaleString('zh-TW',{minimumFractionDigits:2,maximumFractionDigits:2});
+          const actionWord = diff>0 ? '買入' : '賣出';
+          const clr = diff>0 ? 'var(--green)' : 'var(--red)';
+          sharesHtml = `<div style="font-family:'Space Mono',monospace;font-size:11px;line-height:1.5">
+            <span style="color:var(--muted)">約</span>
+            <span style="color:${clr};font-weight:700">${actionWord} </span>
+            <span style="color:${clr};font-weight:700;font-size:14px">${sharesDisplay}</span>
+            <span style="color:${clr};font-weight:700"> 股</span>
+            <span style="color:var(--muted)"> @ ${priceDisplay}</span>
+          </div>`;
+        } else {
+          sharesHtml = `<div style="font-size:10px;color:var(--muted);line-height:1.5;opacity:.45">
+            輸入股價可顯示股數
+          </div>`;
+        }
+      }
+
+      rowsHtml += `<div style="padding:12px 0;border-bottom:1px solid var(--border)">
+        <!-- Line 1: ticker + % (left) ... 買賣金額 (right) -->
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+          <div class="action-ticker ${diff>0?'buy':diff<0?'sell':'hold'}">${diff>0?'↑':diff<0?'↓':'—'} ${a.ticker} <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--muted)">${a.innerPct}%</span></div>
+          ${(()=>{
+            const g_rb2 = groups.find(x=>x.id===a.groupId);
+            const isUSD_rb2 = g_rb2 && g_rb2.currency==='USD';
+            const clr2 = diff>0?'var(--green)':diff<0?'var(--red)':'var(--muted)';
+            const sign2 = diff>0?'+':diff<0?'−':'';
+            const word = diff>0?'買':diff<0?'賣':'';
+            if(isUSD_rb2 && a.lastPrice){
+              const diffUSD = Math.abs(diff)/(exchangeRate||32);
+              return '<div style="text-align:right;flex-shrink:0;padding-left:10px">'
+                +'<div class="action-amount" style="color:'+clr2+'">'+sign2+'$'+Math.round(diffUSD).toLocaleString('en-US')+' <span style="font-size:9px;opacity:.6">USD</span></div>'
+                +'<div style="font-family:\'Space Mono\',monospace;font-size:11px;color:'+clr2+';opacity:.65;margin-top:2px">'+sign2+'NT$'+fmt(Math.abs(diff))+'</div>'
+                +'</div>';
+            }
+            return '<div class="action-amount '+(diff>0?'buy':diff<0?'sell':'hold')+'" style="flex-shrink:0;padding-left:10px">'+sign2+'$'+fmt(Math.abs(diff))+'</div>';
+          })()}
+        </div>
+        <!-- Line 2: 現在 → 再平衡後 (full width, no truncation) -->
+        <div style="line-height:1.5;margin-bottom:2px">
+          <span style="font-size:11px;color:var(--muted)">現在 </span>
+          <span style="font-family:'Space Mono',monospace;font-size:12px;color:var(--text)">$${fmt(a.current)}</span>
+          <span style="font-size:11px;color:var(--muted)"> → 再平衡後 </span>
+          <span style="font-family:'Space Mono',monospace;font-size:12px;color:var(--gold2)">$${fmt(target)}</span>
+        </div>
+        ${sharesHtml}
+      </div>`;
+    });
+
+    l2Html += `<div class="group-rebal" style="border:1px solid ${color}44">
+      <div class="group-rebal-header">
+        <span class="group-rebal-title" style="color:${color}">${g.name} 群組內部</span>
+        <span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted)">目標 $${fmt(gTgt)}</span>
+      </div>
+      <div class="group-rebal-body">${rowsHtml}</div>
+    </div>`;
+  });
+  document.getElementById('layer2Cards').innerHTML = l2Html;
+  } catch(e){ console.error('refreshRebalance error:',e); }
+}
+
+// ── Refresh Returns ───────────────────────────────────────────────────────────
+function refreshReturns(){
+  const rawW = withdraw();
+  const w = Math.min(rawW, totalCurrent());
+  const after = Math.max(0, totalCurrent() - w);
+  let totalP=0, wRate=0, rows='';
+  const retTotalExp = assets.reduce((s,a)=>{
+    const lev=a.leverage!=null?a.leverage:1;
+    return s+(after*assetEffectivePct(a)/100)*lev;
+  },0);
+
+  assets.forEach((a,i)=>{
+    const effPct = assetEffectivePct(a);
+    const tgt = after*effPct/100;
+    const profit = Math.round(tgt*a.rate/100);
+    const lev = a.leverage!=null?a.leverage:1;
+    const aExp = tgt*lev;
+    const aExpPct = after>0?(aExp/after*100):0;
+    const expLabel = lev===0?'現金':aExpPct.toFixed(1)+'%';
+    const expClr = lev===0?'var(--muted)':lev>1?'var(--red)':'var(--gold2)';
+    totalP+=profit;
+    wRate+=effPct*a.rate/100;
+    const rtgt=document.getElementById('rtgt-'+a.id);
+    if(rtgt) rtgt.textContent='$'+fmt(Math.round(tgt));
+    rows+=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;padding:10px 0;border-bottom:1px solid var(--border);align-items:center">
+      <div>
+        <div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:${colorFor(i)}">${a.ticker}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">${a.name||''}</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-family:'Space Mono',monospace;font-size:12px;color:${expClr};font-weight:700">${expLabel}</div>
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-top:2px">${a.rate}%</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:${a.rate===0?'var(--muted)':'var(--green)'}">${a.rate===0?'—':'$'+fmt(profit)}</div>
+      </div>
+    </div>`;
+  });
+
+  document.getElementById('returnRows').innerHTML=rows;
+  const retExpPctVal = after>0?(retTotalExp/after*100):0;
+  const retExpEl=document.getElementById('retExpPct');
+  const retExpAmtEl=document.getElementById('retExpAmt');
+  if(retExpEl){ retExpEl.textContent=retExpPctVal.toFixed(1)+'%';
+    retExpEl.style.color=retExpPctVal>120?'var(--red)':retExpPctVal>100?'var(--gold)':'var(--green)'; }
+  if(retExpAmtEl) retExpAmtEl.textContent='$'+fmt(retTotalExp);
+  // Normalize wRate: if group pcts don't sum to 100, scale accordingly
+  const totalEffPct = assets.reduce((s,a)=>s+assetEffectivePct(a),0);
+  const wRateNorm = totalEffPct > 0 ? wRate / totalEffPct * 100 : wRate;
+  document.getElementById('weightedRate').textContent=wRateNorm.toFixed(1)+'%';
+  document.getElementById('totalProfit').textContent='$'+fmt(totalP);
+}
+
+// ── Risk Tab ──────────────────────────────────────────────────────────────────
+// ── 歷史衰退年數據來源 ─────────────────────────────────────────────────────────
+// VT:      Yahoo Finance 年度報酬 (finance.yahoo.com/quote/VT/performance)
+// QQQ:     tradethatswing.com 年度報酬
+// SMH:     Yahoo Finance 年度報酬 (finance.yahoo.com/quote/SMH/performance)
+// 00631L:  2014/10成立。各年以實際台股年報酬×2計算，加計槓桿耗損。
+//          2022年台股-22.58% → 00631L實際約-46%（含波動耗損）
+//          2020 COVID Q1台股峰谷-30% → 00631L約-52%
+// 正二現金:  備用現金，非投資部位，任何年份跌幅 = 0%
+// recovery: 各標的回到前高所需月數（加權平均，以你的配置計算組合回復時間）
+// 來源: PortfoliosLab, advisorperspectives.com, TradeThatsWing, Yahoo Finance
+const CRISIS_YEARS = [
+  {
+    year:'2000–2002', label:'科技泡沫', severity:'severe',
+    desc:'那斯達克崩潰三年累計。QQQ單年最慘-37%，三年累計-80%',
+    dd:{ VT:-45, QQQ:-80, SMH:-75, '00631L':-55, '正二現金':0 },
+    recovery:{ VT:84, QQQ:175, SMH:120, '00631L':null, '正二現金':0 },
+    recoveryNote:'QQQ花14年7個月才回2000年高點；SMH超過10年；VT約7年；00631L未成立'
+  },
+  {
+    year:'2008', label:'金融海嘯', severity:'severe',
+    desc:'全球金融危機。VT -41%、QQQ -42%、SMH -46%',
+    dd:{ VT:-41, QQQ:-42, SMH:-46, '00631L':-62, '正二現金':0 },
+    recovery:{ VT:24, QQQ:24, SMH:60, '00631L':36, '正二現金':0 },
+    recoveryNote:'VT & QQQ約2年回原點；SMH因2000泡沫積累約5年；台股2008→2011約3年'
+  },
+  {
+    year:'2020 Q1', label:'COVID急跌', severity:'moderate',
+    desc:'疫情恐慌3月急跌。台股峰谷-30%，00631L約-52%',
+    dd:{ VT:-31, QQQ:-28, SMH:-32, '00631L':-52, '正二現金':0 },
+    recovery:{ VT:6, QQQ:5, SMH:5, '00631L':7, '正二現金':0 },
+    recoveryNote:'史上最快V形反彈。各標的5-7個月全數回到前高'
+  },
+  {
+    year:'2022', label:'升息熊市', severity:'moderate',
+    desc:'Fed暴力升息全年熊市。台股-22.6%，00631L實際-36.32%（今周刊）',
+    dd:{ VT:-18, QQQ:-33, SMH:-34, '00631L':-36, '正二現金':0 },
+    recovery:{ VT:24, QQQ:18, SMH:12, '00631L':12, '正二現金':0 },
+    recoveryNote:'SMH & 00631L半導體+台股率先反彈約1年；QQQ約18個月；VT約2年'
+  },
+  {
+    year:'2025 Q1', label:'關稅衝擊', severity:'mild',
+    desc:'Trump關稅衝擊，科技股急跌。台股峰谷約-21%',
+    dd:{ VT:-12, QQQ:-20, SMH:-26, '00631L':-35, '正二現金':0 },
+    recovery:{ VT:4, QQQ:4, SMH:4, '00631L':4, '正二現金':0 },
+    recoveryNote:'關稅政策鬆動後快速反彈，各標的約3-5個月回原點（仍在進行中）'
+  },
+];
+const SEV_COLOR = { severe:'var(--red)', moderate:'var(--gold)', mild:'#5b9bd5' };
+
+function calcPortfolioDD(ddMap){
+  const w=withdraw(); const after=totalCurrent()-w;
+  let portDD=0;
+  assets.forEach(a=>{
+    const assetDD=ddMap&&a.ticker?ddMap[a.ticker]:null;
+    if(assetDD==null) return;
+    // dd values already reflect actual ETF return (including leverage effect)
+    // do NOT multiply by leverage again
+    portDD+=(assetEffectivePct(a)/100)*assetDD;
+  });
+  return portDD;
+}
+
+function renderRisk(){
+  try {
+    const wEl=document.getElementById('withdrawInput');
+    const w=wEl?(Number(wEl.value)||0):0;
+    const after=totalCurrent()-w;
+    let cardsHtml='';
+    CRISIS_YEARS.forEach(c=>{
+      const portDD=calcPortfolioDD(c.dd);
+      const lossAmt=after*portDD/100;
+      const color=SEV_COLOR[c.severity];
+      let breakdown='';
+      assets.forEach((a,i)=>{
+        const lev=a.leverage!=null?a.leverage:1;
+        const assetDD=c.dd[a.ticker];
+        if(assetDD==null) return;
+        // assetDD is already the actual ETF drawdown (including leverage)
+        const contrib=(assetEffectivePct(a)/100)*assetDD;
+        const levLabel = lev!==1?' ×'+lev:'';
+        breakdown+=`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span style="font-family:'Space Mono',monospace;font-size:11px;color:${colorFor(i)}">${a.ticker}(${assetEffectivePct(a).toFixed(0)}%${levLabel})</span>
+          <span style="font-family:'Space Mono',monospace;font-size:11px;color:${assetDD===0?'var(--muted)':'var(--red)'}">${assetDD===0?'—':assetDD.toFixed(0)+'%'}</span>
+          <span style="font-family:'Space Mono',monospace;font-size:11px;color:${contrib===0?'var(--muted)':'var(--red)'}">${contrib===0?'—':contrib.toFixed(1)+'%'}</span>
+        </div>`;
+      });
+            // Weighted recovery time
+      let wRecovery = 0, wRecoveryPct = 0;
+      if (c.recovery) {
+        assets.forEach(a => {
+          const r = c.recovery[a.ticker];
+          const lev = a.leverage != null ? a.leverage : 1;
+          if (r == null || lev === 0) return;
+          const ep = assetEffectivePct(a);
+          wRecovery += ep * r;
+          wRecoveryPct += ep;
+        });
+      }
+      const avgRecovery = wRecoveryPct > 0 ? Math.round(wRecovery / wRecoveryPct) : null;
+      const recoveryYr = avgRecovery ? (avgRecovery >= 12 ? Math.floor(avgRecovery/12)+'年'+(avgRecovery%12>0?' '+avgRecovery%12+'個月':'') : avgRecovery+'個月') : '—';
+
+      cardsHtml+=`<div class="asset-card" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+          <div>
+            <div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700">${c.year}</div>
+            <div style="font-size:11px;font-weight:700;color:${color};margin-top:2px">${c.label}</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:3px">${c.desc}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--red)">${portDD.toFixed(1)}%</div>
+            <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--red);margin-top:2px">−$${fmt(Math.abs(lossAmt))}</div>
+          </div>
+        </div>
+        <div style="background:var(--surface2);border-radius:4px;height:6px;margin-bottom:8px;overflow:hidden">
+          <div style="width:${Math.min(Math.abs(portDD),100)}%;height:100%;border-radius:4px;background:${color}"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:8px 10px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border)">
+          <div style="font-size:15px">⏱</div>
+          <div>
+            <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase">估計回到前高</div>
+            <div style="font-family:'Space Mono',monospace;font-size:15px;font-weight:700;color:var(--gold2);margin-top:2px">${recoveryYr}</div>
+          </div>
+          <div style="margin-left:auto;font-size:10px;color:var(--muted);text-align:right;line-height:1.5;max-width:55%">${c.recoveryNote||''}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding-bottom:4px;border-bottom:1px solid var(--border)">
+          <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted)">資產(佔比)</span>
+          <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted)">資產跌幅</span>
+          <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted)">組合貢獻</span>
+        </div>
+        ${breakdown}
+      </div>`;
+    });
+    document.getElementById('riskCards').innerHTML=cardsHtml;
+
+    const stdevMap={VT:17,QQQ:24,SMH:39,'00631L':40,'正二現金':0};
+    let wStdev=0;
+    assets.forEach(a=>{
+      const lev=a.leverage!=null?a.leverage:1;
+      const sd=stdevMap[a.ticker]||20;
+      // stdevMap values are actual ETF volatility (already includes leverage effect)
+      // do NOT multiply by lev again
+      wStdev+=(assetEffectivePct(a)/100)*sd;
+    });
+    // Weighted annual return for confidence intervals
+    const wRate = assets.reduce((s,a)=>s+assetEffectivePct(a)*a.rate/100,0);
+    // σ1 = ±1σ (68%), σ2 = ±2σ (95%)
+    const s1Up = wRate + wStdev,   s1Down = wRate - wStdev;
+    const s2Up = wRate + 2*wStdev, s2Down = wRate - 2*wStdev;
+    const amtS1Up   = after * s1Up   / 100;
+    const amtS1Down = after * s1Down / 100;
+    const amtS2Up   = after * s2Up   / 100;
+    const amtS2Down = after * s2Down / 100;
+
+    function fmtPct(v){ return (v>=0?'+':'')+v.toFixed(1)+'%'; }
+    function fmtAmt(v){ return (v>=0?'+$':'-$')+fmt(Math.abs(v)); }
+
+    document.getElementById('normalCard').innerHTML=`
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div>
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase">加權年化報酬</div>
+          <div style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:var(--green);margin-top:2px">${fmtPct(wRate)}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase">年化標準差</div>
+          <div style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:var(--gold);margin-top:2px">${wStdev.toFixed(1)}%</div>
+        </div>
+      </div>
+
+      <!-- 68% band -->
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px">68% 機率（±1σ）</div>
+          <div style="font-size:10px;color:var(--muted)">約每 3 年出現 1 次極端</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center">
+          <div style="background:rgba(224,85,85,.08);border:1px solid rgba(224,85,85,.2);border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:4px">最差</div>
+            <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--red)">${fmtPct(s1Down)}</div>
+            <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--red);margin-top:3px">${fmtAmt(amtS1Down)}</div>
+          </div>
+          <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);text-align:center">～</div>
+          <div style="background:rgba(76,175,130,.08);border:1px solid rgba(76,175,130,.2);border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:4px">最好</div>
+            <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--green)">${fmtPct(s1Up)}</div>
+            <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);margin-top:3px">${fmtAmt(amtS1Up)}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 95% band -->
+      <div style="border-top:1px solid var(--border);padding-top:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px">95% 機率（±2σ）</div>
+          <div style="font-size:10px;color:var(--muted)">約每 20 年出現 1 次極端</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center">
+          <div style="background:rgba(224,85,85,.05);border:1px solid rgba(224,85,85,.15);border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:4px">極端最差</div>
+            <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--red)">${fmtPct(s2Down)}</div>
+            <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--red);margin-top:3px">${fmtAmt(amtS2Down)}</div>
+          </div>
+          <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);text-align:center">～</div>
+          <div style="background:rgba(76,175,130,.05);border:1px solid rgba(76,175,130,.15);border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:4px">極端最好</div>
+            <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--green)">${fmtPct(s2Up)}</div>
+            <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);margin-top:3px">${fmtAmt(amtS2Up)}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:10px;color:var(--muted);line-height:1.7">
+        ⚠ 基於歷史年化報酬與標準差估算，假設報酬率呈常態分佈。<br>
+        實際結果受市場週期影響，極端情況可能超出 ±2σ 範圍。
+      </div>`;
+
+    const maxDD=Math.min(...CRISIS_YEARS.map(c=>calcPortfolioDD(c.dd)));
+    document.getElementById('riskMetrics').innerHTML=`
+      <div class="summary-card"><div class="summary-card-label">最壞情境跌幅</div><div class="summary-card-value negative">${maxDD.toFixed(1)}%</div></div>
+      <div class="summary-card"><div class="summary-card-label">最大潛在損失</div><div class="summary-card-value negative">$${fmt(Math.abs(after*maxDD/100))}</div></div>
+      <div class="summary-card"><div class="summary-card-label">年化標準差</div><div class="summary-card-value" style="color:var(--gold)">${wStdev.toFixed(0)}%</div></div>
+      <div class="summary-card">
+      <div class="summary-card-label">加碼金</div>
+      <div class="summary-card-value" style="color:var(--green)">${
+        (() => {
+          // Use target amount after rebalance, not current holdings
+          const wAmt = Number(document.getElementById('withdrawInput').value)||0;
+          const afterAmt = totalCurrent() - wAmt;
+          const cashTgt = assets
+            .filter(a=>(a.leverage!=null?a.leverage:1)===0)
+            .reduce((s,a)=>s + afterAmt * assetEffectivePct(a) / 100, 0);
+          return afterAmt>0 ? (cashTgt/afterAmt*100).toFixed(1)+'%' : '0%';
+        })()
+      }</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px">再平衡後目標佔比</div>
+    </div>`;
+  } catch(e){
+    const rc=document.getElementById('riskCards');
+    if(rc) rc.innerHTML='<div style="color:var(--red);font-family:Space Mono,monospace;font-size:11px;padding:12px">載入錯誤：'+e.message+'</div>';
+  }
+}
+
+// ── Add panel toggle ─────────────────────────────────────────────────────────
+function toggleGroupAssets(gid){
+  const btn = document.getElementById('grpToggleBtn-'+gid);
+  const container = document.getElementById('gassets-'+gid);
+  if(!container) return;
+  const isOpen = container.style.display !== 'none';
+  container.style.display = isOpen ? 'none' : 'block';
+  if(btn) btn.textContent = isOpen ? '展開 ▼' : '收合 ▲';
+}
+
+function toggleAllGroups(){
+  const btn = document.getElementById('toggleAllBtn');
+  const allBodies = groups.map(g=>document.getElementById('gbody-'+g.id)).filter(Boolean);
+  const allToggles = groups.map(g=>document.getElementById('gtoggle-'+g.id)).filter(Boolean);
+  // Check if any is open
+  const anyOpen = allBodies.some(b=>b.style.display !== 'none');
+  allBodies.forEach(b=>{ b.style.display = anyOpen ? 'none' : 'block'; });
+  allToggles.forEach(t=>{ t.style.transform = anyOpen ? 'rotate(-90deg)' : ''; });
+  if(btn) btn.textContent = anyOpen ? '全部展開 ▼' : '全部收合 ▲';
+}
+
+function toggleAddPanel(){
+  const body = document.getElementById('addPanelBody');
+  const icon = document.getElementById('addPanelToggle');
+  if(!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  if(icon) icon.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+// ── Add / Remove ──────────────────────────────────────────────────────────────
+function addAsset(){
+  const ticker   = document.getElementById('newTicker').value.trim().toUpperCase();
+  const name     = document.getElementById('newName').value.trim();
+  const groupSel = document.getElementById('newGroup');
+  const gid      = Number(groupSel.value);
+  const current  = Number(document.getElementById('newCurrent').value)||0;
+  const innerPct = Number(document.getElementById('newPct').value)||0;
+  const levRaw   = document.getElementById('newLeverage').value.trim();
+  const leverage = levRaw!==''?Number(levRaw):1;
+  const rate     = Number(document.getElementById('newRate').value)||0;
+
+  if(!ticker){ alert('請輸入代號'); document.getElementById('newTicker').focus(); return; }
+
+  const doAdd = ()=>{
+    const a = makeAsset(gid, ticker, name, innerPct, current, rate, leverage);
+    assets.push(a);
+    // Re-normalize so all assets in group sum to 100%
+    normalizeGroupPcts(gid);
+    buildGroupCards();
+    buildReturnCards();
+    updateGroupSelect();
+    ['newTicker','newName','newCurrent','newPct','newLeverage','newRate'].forEach(id=>{
+      document.getElementById(id).value='';
+    });
+    updateCalc();
+  };
+
+  if(innerPct===0){
+    customConfirm({
+      title:'群組內比例為 0',
+      message:'這個資產的群組內比例是 0%，再平衡時不會分配資金。確定要加入嗎？',
+      confirmText:'仍要加入',
+      onConfirm: doAdd
+    });
+  } else {
+    doAdd();
+  }
+}
+
+// Re-normalize innerPcts of a group to sum exactly to 100
+function normalizeGroupPcts(gid){
+  const ga = assets.filter(a=>a.groupId===gid);
+  const sum = ga.reduce((s,a)=>s+a.innerPct, 0);
+  if(sum <= 0){
+    // All zero: distribute evenly
+    ga.forEach(a=>{ a.innerPct = Math.round(100/ga.length); });
+    // Fix rounding so last gets remainder
+    const s2 = ga.reduce((s,a)=>s+a.innerPct, 0);
+    if(ga.length>0) ga[ga.length-1].innerPct += (100-s2);
+  } else {
+    // Scale proportionally
+    let allocated = 0;
+    ga.forEach((a,i)=>{
+      if(i===ga.length-1){
+        a.innerPct = Math.max(0, 100-allocated);
+      } else {
+        a.innerPct = Math.max(0, Math.round(a.innerPct/sum*100));
+        allocated += a.innerPct;
+      }
+    });
+  }
+}
+
+function removeAsset(id){
+  const idx=assetIndex(id); if(idx<0) return;
+  if(assets.length<=1){ alert('至少保留一個資產'); return; }
+  const rmGroupId = assets[idx].groupId;
+  assets.splice(idx,1);
+  // Re-normalize remaining assets so they sum to 100%
+  if(assets.filter(a=>a.groupId===rmGroupId).length > 0){
+    normalizeGroupPcts(rmGroupId);
+  }
+  buildGroupCards();
+  buildReturnCards();
+  updateCalc();
+}
+
+function updateGroupSelect(){
+  const sel=document.getElementById('newGroup');
+  if(!sel) return;
+  sel.innerHTML=groups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+}
+
+// ── Tab switch ────────────────────────────────────────────────────────────────
+function switchTab(name){
+  // Check group sum before going to rebalance
+  if(name==='rebalance'){
+    const totalPct = groups.reduce((s,g)=>s+g.pct, 0);
+    if(Math.abs(totalPct - 100) > 0.1){
+      showGroupSumWarning(totalPct);
+      return; // block navigation
+    }
+  }
+  const names=['holdings','rebalance','returns','risk'];
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',names[i]===name));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+name));
+  if(name==='risk') renderRisk();
+  // Scroll to top instantly when switching tabs (smooth scroll felt laggy)
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+  const shell = document.querySelector('.app-shell');
+  if(shell) shell.scrollTop = 0;
+}
+
+function showGroupSumWarning(totalPct){
+  const existing = document.getElementById('groupSumModal');
+  if(existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'groupSumModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;';
+  modal.innerHTML = `
+    <div style="background:#1a1a1a;border:1px solid rgba(224,85,85,.4);border-radius:16px;padding:24px;width:100%;max-width:340px;text-align:center">
+      <div style="font-size:32px;margin-bottom:12px">⚠️</div>
+      <div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--red);margin-bottom:8px">群組比例未達 100%</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:6px">目前合計：<span style="color:var(--red);font-weight:700">${totalPct}%</span></div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:20px;line-height:1.6">
+        請回到持倉頁調整群組滑桿，<br>讓美股＋台股合計等於 100%。
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="document.getElementById('groupSumModal').remove()"
+          style="flex:1;background:none;border:1px solid #2a2a2a;color:var(--muted);border-radius:10px;padding:13px;font-family:'Space Mono',monospace;font-size:11px;cursor:pointer;">
+          返回調整
+        </button>
+        <button onclick="autoFixGroupSum();document.getElementById('groupSumModal').remove();switchTab('rebalance')"
+          style="flex:1;background:var(--gold);color:#0a0a0a;border:none;border-radius:10px;padding:13px;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;cursor:pointer;">
+          自動修正
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function autoFixGroupSum(){
+  // Normalize all groups to sum to 100%
+  const total = groups.reduce((s,g)=>s+g.pct, 0);
+  if(total === 0){
+    const each = Math.round(100/groups.length);
+    groups.forEach(g=>{ g.pct = each; });
+  } else {
+    let remaining = 100;
+    groups.forEach((g, i)=>{
+      if(i === groups.length-1){
+        g.pct = remaining; // last group gets remainder
+      } else {
+        g.pct = Math.round(g.pct/total*100);
+        remaining -= g.pct;
+      }
+    });
+  }
+  buildGroupCards();
+  updateCalc();
+}
+
+// ── Storage ───────────────────────────────────────────────────────────────────
+// ── Account management ────────────────────────────────────────────────────────
+let currentAccount = localStorage.getItem('currentAccount') || 'A';
+
+function accountStoreKey(acct){
+  return 'portfolio_v2_' + (acct||currentAccount);
+}
+
+const STORE_KEY = 'portfolio_v2'; // kept for compat, actual key is dynamic
+function saveData(){
+  try {
+    localStorage.setItem(accountStoreKey(), JSON.stringify({
+      groups: groups.map(g=>({...g})),
+      assets: assets.map(a=>({...a})),
+      uid, gid, exchangeRate,
+      withdraw: document.getElementById('withdrawInput').value,
+      savedAt: Date.now()
+    }));
+    showSaveStatus();
+  } catch(e){
+    // Storage full or unavailable — show a warning the user can see
+    const el = document.getElementById('saveStatus');
+    if(el){
+      el.textContent = '⚠️ 儲存失敗 (空間不足)';
+      el.style.color = 'var(--red)';
+      el.style.opacity = '1';
+    }
+    console.warn('Save failed', e);
+  }
+}
+function loadData(){
+  try {
+    const raw=localStorage.getItem(accountStoreKey());
+    if(!raw) return false;
+    const s=JSON.parse(raw);
+    if(!s.assets||!s.assets.length) return false;
+    groups=s.groups||groups; assets=s.assets;
+    uid=s.uid||Math.max(...assets.map(a=>a.id),0);
+    gid=s.gid||Math.max(...groups.map(g=>g.id),0);
+    document.getElementById('withdrawInput').value=s.withdraw||0;
+    // Migrate: add shares/lastPrice/costBasis if missing from old saves
+    assets.forEach(a=>{
+      if(a.shares == null) a.shares = 0;
+      if(a.costBasis == null) a.costBasis = 0;
+      if(a.lastPrice == null) a.lastPrice = null;
+      if(a.lastPriceAt == null) a.lastPriceAt = null;
+    });
+    // Migrate: add currency field if missing
+    groups.forEach(g=>{
+      if(!g.currency){
+        // Guess by name: 美股→USD, others→TWD
+        g.currency = (g.name.includes('美') || g.name.includes('US')) ? 'USD' : 'TWD';
+      }
+    });
+    // Restore exchange rate
+    const savedRate = s.exchangeRate || localStorage.getItem('exchangeRate');
+    if(savedRate) exchangeRate = Number(savedRate) || 32;
+    return s.savedAt;
+  } catch(e){ return false; }
+}
+function showSaveStatus(){
+  const el=document.getElementById('saveStatus'); if(!el) return;
+  const now=new Date();
+  el.textContent='已儲存 '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  el.style.opacity='1'; clearTimeout(el._t);
+  el._t=setTimeout(()=>{ el.style.opacity='0.4'; },2000);
+}
+function customConfirm(opts){
+  // opts: {title, message, confirmText, confirmColor, onConfirm}
+  const existing = document.getElementById('genericConfirmModal');
+  if(existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'genericConfirmModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;';
+  const cColor = opts.confirmColor || 'var(--gold)';
+  const cText  = opts.confirmText || '確定';
+  modal.innerHTML =
+    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-width:340px;">'
+      +'<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:12px">'+(opts.title||'確認')+'</div>'
+      +'<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px">'+(opts.message||'')+'</div>'
+      +'<div style="display:flex;gap:10px">'
+        +'<button id="gcCancel" style="flex:1;background:none;color:var(--text2);border:1px solid var(--border);border-radius:10px;padding:13px;font-family:\'Space Mono\',monospace;font-size:12px;cursor:pointer">取消</button>'
+        +'<button id="gcConfirm" style="flex:1;background:'+cColor+';color:#0a0a0a;border:none;border-radius:10px;padding:13px;font-family:\'Space Mono\',monospace;font-size:12px;font-weight:700;cursor:pointer">'+cText+'</button>'
+      +'</div>'
+    +'</div>';
+  document.body.appendChild(modal);
+  document.getElementById('gcCancel').onclick = ()=> modal.remove();
+  document.getElementById('gcConfirm').onclick = ()=>{
+    modal.remove();
+    if(typeof opts.onConfirm==='function') opts.onConfirm();
+  };
+  modal.onclick = (e)=>{ if(e.target===modal) modal.remove(); };
+}
+
+function clearData(){
+  const existing = document.getElementById('resetModal');
+  if(existing) existing.remove();
+  const acctName = getAccountName(currentAccount);
+  const modal = document.createElement('div');
+  modal.id = 'resetModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;';
+  modal.innerHTML =
+    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-width:340px;">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
+        +'<span style="font-size:20px">⚠️</span>'
+        +'<div style="font-size:15px;font-weight:700;color:var(--text)">確定要重置嗎？</div>'
+      +'</div>'
+      +'<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px">'
+        +'這會清空「'+acctName+'」的所有資產、金額、股價和成本，還原為預設值。<br><br>'
+        +'<span style="color:var(--red)">此操作無法復原。</span>另一個帳戶不受影響。'
+      +'</div>'
+      +'<div style="display:flex;gap:10px">'
+        +'<button id="resetCancel" style="flex:1;background:none;color:var(--text2);border:1px solid var(--border);border-radius:10px;padding:13px;font-family:\'Space Mono\',monospace;font-size:12px;cursor:pointer">取消</button>'
+        +'<button id="resetConfirm" style="flex:1;background:var(--red);color:#fff;border:none;border-radius:10px;padding:13px;font-family:\'Space Mono\',monospace;font-size:12px;font-weight:700;cursor:pointer">確定重置</button>'
+      +'</div>'
+    +'</div>';
+  document.body.appendChild(modal);
+  document.getElementById('resetCancel').onclick = ()=> modal.remove();
+  document.getElementById('resetConfirm').onclick = ()=>{
+    localStorage.removeItem(accountStoreKey());
+    location.reload();
+  };
+  // Click outside to cancel
+  modal.onclick = (e)=>{ if(e.target===modal) modal.remove(); };
+}
+function shareJSON(){
+  const state={ version:2, savedAt:new Date().toISOString(),
+    withdraw:document.getElementById('withdrawInput').value, uid, gid,
+    groups:groups.map(g=>({...g})), assets:assets.map(a=>({...a})) };
+  const json=JSON.stringify(state,null,2);
+  const d=new Date();
+  const dateStr=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const filename='portfolio-'+dateStr+'.json';
+
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+  // iOS: try Web Share API first (works when opened from Files app / home screen)
+  if(isIOS && navigator.share && navigator.canShare){
+    try {
+      const blob = new Blob([json], {type:'application/json'});
+      const file = new File([blob], filename, {type:'application/json'});
+      if(navigator.canShare({files:[file]})){
+        navigator.share({ files:[file], title:'Portfolio Backup' })
+          .then(()=>showSaveStatus())
+          .catch(()=>showExportModal(json,filename));
+        return;
+      }
+    } catch(e){}
+  }
+
+  // Mac / Desktop: try download
+  if(!isIOS){
+    try {
+      const blob=new Blob([json],{type:'application/json'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url; a.download=filename;
+      a.style.display='none';
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+      showSaveStatus();
+      return;
+    } catch(e){}
+  }
+
+  // Fallback: always works — show modal with copy button
+  showExportModal(json,filename);
+  showSaveStatus();
+}
+
+function showExportModal(json,filename){
+  const existing=document.getElementById('exportModal');
+  if(existing) existing.remove();
+  const modal=document.createElement('div');
+  modal.id='exportModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;flex-direction:column;padding:24px;';
+  modal.innerHTML=`<div style="background:#111;border:1px solid #2a2a2a;border-radius:16px;padding:20px;flex:1;display:flex;flex-direction:column;max-height:100%">
+    <div style="font-family:'Space Mono',monospace;font-size:11px;letter-spacing:3px;color:#c9a84c;margin-bottom:4px">EXPORT</div>
+    <div style="font-size:12px;color:#666;margin-bottom:12px">${filename}</div>
+    <textarea id="exportText" readonly style="flex:1;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;color:#e8e8e8;font-family:'Space Mono',monospace;font-size:10px;padding:12px;resize:none;outline:none;line-height:1.5">${json}</textarea>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button onclick="document.getElementById('exportText').select();document.execCommand('copy');this.textContent='✓ 已複製';setTimeout(()=>this.textContent='複製全部',2000)"
+        style="flex:1;background:#c9a84c;color:#0a0a0a;border:none;border-radius:10px;padding:14px;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;cursor:pointer">複製全部</button>
+      <button onclick="document.getElementById('exportModal').remove()"
+        style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:10px;padding:14px 16px;font-family:'Space Mono',monospace;font-size:11px;cursor:pointer">關閉</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  setTimeout(()=>{ const ta=document.getElementById('exportText'); if(ta){ ta.focus(); ta.select(); } },100);
+}
+function importJSON(event){
+  const file=event.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try {
+      const s=JSON.parse(e.target.result);
+      if(!s.assets||!s.assets.length){ alert('無效的備份檔'); return; }
+      if(!s.groups||!s.groups.length){ alert('無效的備份檔（缺少群組資料）'); return; }
+      // Validate all asset groupIds exist in groups
+      const importedGroupIds = new Set((s.groups||[]).map(g=>g.id));
+      const orphaned = s.assets.filter(a=>!importedGroupIds.has(a.groupId));
+
+      // Actual load action
+      const doLoad = ()=>{
+        groups=s.groups||groups; assets=s.assets;
+        uid=s.uid||Math.max(...assets.map(a=>a.id),0);
+        gid=s.gid||Math.max(...groups.map(g=>g.id),0);
+        document.getElementById('withdrawInput').value=s.withdraw||0;
+        localStorage.setItem(accountStoreKey(),JSON.stringify({...s,savedAt:Date.now()}));
+        buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
+        const el=document.getElementById('saveStatus');
+        if(el){ el.textContent='✓ 匯入成功'; el.style.opacity='1';
+          clearTimeout(el._t); el._t=setTimeout(()=>{ el.style.opacity='0.4'; },3000); }
+      };
+
+      // Confirm overwrite, then load
+      const confirmLoad = ()=>{
+        customConfirm({
+          title:'確定要匯入嗎？',
+          message:'載入這份備份後，目前的資料將被覆蓋且無法復原。',
+          confirmText:'確定匯入',
+          confirmColor:'var(--green)',
+          onConfirm: doLoad
+        });
+      };
+
+      if(orphaned.length>0){
+        customConfirm({
+          title:'部分資產找不到群組',
+          message:`有 ${orphaned.length} 個資產找不到對應群組，會被分配到第一個群組。確定要繼續嗎？`,
+          confirmText:'繼續',
+          onConfirm: ()=>{
+            const firstGid = s.groups[0].id;
+            s.assets.forEach(a=>{ if(!importedGroupIds.has(a.groupId)) a.groupId=firstGid; });
+            confirmLoad();
+          }
+        });
+      } else {
+        confirmLoad();
+      }
+    } catch(err){ alert('檔案格式錯誤：'+err.message); }
+  };
+  reader.readAsText(file);
+  event.target.value='';
+}
+
+
+// ── Quick Rebalance Hint ──────────────────────────────────────────────────────
+function renderQuickRebal(gid, after) {
+  const el = document.getElementById('quickRebal-'+gid);
+  if (!el) return;
+
+  const g = groups.find(x=>x.id===gid);
+  if (!g) return;
+
+  const gAssets = assetsInGroup(gid);
+  if (gAssets.length < 2) { el.style.display='none'; return; }
+
+  // Only show if inner pcts sum to 100
+  const innerSum = gAssets.reduce((s,a)=>s+a.innerPct,0);
+  if (Math.abs(innerSum - 100) > 0.01) { el.style.display='none'; return; }
+
+  // Use current group total as the base — quick rebal moves money within group only
+  const gCurTotal = gAssets.reduce((s,a)=>s+a.current,0);
+
+  // Target for each asset = group current total × inner pct
+  // (we're rebalancing within what we have NOW, not to the long-term target)
+  const qrInnerSum = gAssets.reduce((s,a)=>s+a.innerPct, 0);
+  const deviations = gAssets.map(a => {
+    // Normalize so innerPcts always sum to 100% within the group
+    const normalizedInner = qrInnerSum > 0 ? a.innerPct / qrInnerSum * 100 : 0;
+    const tgt = gCurTotal * normalizedInner / 100;
+    const cur = a.current;
+    return { a, tgt, cur, diff: tgt - cur };
+  });
+
+  // Find biggest seller (most over target) and biggest buyer (most under target)
+  const overWeight  = deviations.filter(d=>d.diff < 0).sort((a,b)=>a.diff-b.diff);
+  const underWeight = deviations.filter(d=>d.diff > 0).sort((a,b)=>b.diff-a.diff);
+
+  if (!overWeight.length || !underWeight.length) { el.style.display='none'; return; }
+
+  // Deviation as % of group current total
+  const maxDiff = Math.max(...deviations.map(d=>Math.abs(d.diff)));
+  const maxDiffPct = gCurTotal > 0 ? maxDiff / gCurTotal * 100 : 0;
+
+  // Only show hint if deviation > 3%
+  if (maxDiffPct < 3) { el.style.display='none'; return; }
+
+  const pctDev = (maxDiffPct).toFixed(1);
+  const urgency = maxDiffPct > 10 ? 'var(--red)' : maxDiffPct > 5 ? 'var(--gold)' : '#5b9bd5';
+  const urgBg  = maxDiffPct > 10 ? 'rgba(224,85,85,.08)'   : maxDiffPct > 5 ? 'rgba(201,168,76,.08)'   : 'rgba(91,155,213,.08)';
+  const urgBdr = maxDiffPct > 10 ? 'rgba(224,85,85,.3)'    : maxDiffPct > 5 ? 'rgba(201,168,76,.3)'    : 'rgba(91,155,213,.3)';
+
+  // Action recommendation based on drift severity
+  const advice = maxDiffPct > 10
+    ? '偏移較大，建議盡快再平衡'
+    : maxDiffPct > 5
+    ? '中度偏移，可擇機調整'
+    : '偏移輕微，暫可不調整';
+
+  // Build ALL sells and buys (not just the top one)
+  const sellRows = overWeight.map(d => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;
+      background:rgba(224,85,85,.08);border-radius:8px;border:1px solid rgba(224,85,85,.2);margin-bottom:5px">
+      <div>
+        <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--red)">↓ ${d.a.ticker}</span>
+        <div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${d.a.innerPct}% → $${fmt(d.tgt)}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--red)">−$${fmt(Math.abs(d.diff))}</div>
+        <div style="font-size:10px;color:var(--muted)">現 $${fmt(d.cur)}</div>
+      </div>
+    </div>`).join('');
+
+  const buyRows = underWeight.map(d => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;
+      background:rgba(76,175,130,.08);border-radius:8px;border:1px solid rgba(76,175,130,.2);margin-bottom:5px">
+      <div>
+        <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--green)">↑ ${d.a.ticker}</span>
+        <div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${d.a.innerPct}% → $${fmt(d.tgt)}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--green)">+$${fmt(Math.abs(d.diff))}</div>
+        <div style="font-size:10px;color:var(--muted)">現 $${fmt(d.cur)}</div>
+      </div>
+    </div>`).join('');
+
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div style="background:${urgBg};border:1px solid ${urgBdr};border-radius:10px;padding:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:${urgency};text-transform:uppercase">⚡ 快速再平衡</div>
+        <div style="font-family:'Space Mono',monospace;font-size:10px;color:${urgency}">最大偏移 ${pctDev}%</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:2px 0 2px 0;margin-bottom:12px">
+        <div style="width:3px;align-self:stretch;min-height:16px;background:${urgency};border-radius:2px"></div>
+        <span style="font-family:'Noto Sans TC',sans-serif;font-size:12px;font-weight:600;color:${urgency}">${advice}</span>
+      </div>
+      <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--red);letter-spacing:1px;margin-bottom:5px;text-transform:uppercase">賣出</div>
+      ${sellRows}
+      <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--green);letter-spacing:1px;margin:8px 0 5px;text-transform:uppercase">買入</div>
+      ${buyRows}
+    </div>`;
+}
+
+// ── Exchange rate ────────────────────────────────────────────────────────────
+function updateExchangeRate(val){
+  const v = parseFloat(val);
+  if(!v || v<=0) return;
+  exchangeRate = v;
+  localStorage.setItem('exchangeRate', v);
+  // Sync all rate inputs
+  document.querySelectorAll('[id^="rateInput-"]').forEach(el=>{
+    if(el !== document.activeElement) el.value = v;
+  });
+  // Refresh USD hints and recalc
+  assets.forEach(a=>{
+    const g = groups.find(x=>x.id===a.groupId);
+    if(!g || g.currency!=='USD') return;
+    const curInput = document.getElementById('cur-'+a.id);
+    // Get current USD display value and recalculate TWD with new rate
+    if(curInput){
+      const usdVal = Number(curInput.value)||0;
+      a.current = Math.round(usdVal * exchangeRate);
+      const twdHint = document.getElementById('twd-'+a.id);
+      if(twdHint) twdHint.textContent = '≈ NT$ '+a.current.toLocaleString('zh-TW');
+    }
+  });
+  updateCalc();
+}
+
+// ── Stock price ──────────────────────────────────────────────────────────────
+function getYahooTicker(ticker){
+  const map = {'00631L':'00631L.TW','0050':'0050.TW','006208':'006208.TW',
+               '00878':'00878.TW','2330':'2330.TW'};
+  if(map[ticker]) return map[ticker];
+  if(/^\d{4,6}[A-Z]?$/.test(ticker)) return ticker+'.TW';
+  return ticker;
+}
+
+function applyPrice(id, price){
+  const idx = assetIndex(id); if(idx<0) return;
+  assets[idx].lastPrice = price;
+  assets[idx].lastPriceAt = Date.now();
+  if(assets[idx].shares > 0){
+    const g = groups.find(x=>x.id===assets[idx].groupId);
+    const isUSD = g && g.currency==='USD';
+    assets[idx].current = isUSD
+      ? Math.round(assets[idx].shares * price * (exchangeRate||32))
+      : Math.round(assets[idx].shares * price);
+    // Sync cur input display
+    const curEl = document.getElementById('cur-'+id);
+    if(curEl && curEl !== document.activeElement)
+      curEl.value = isUSD
+        ? (assets[idx].current/(exchangeRate||32)).toFixed(0)
+        : assets[idx].current;
+    const twdEl = document.getElementById('twd-'+id);
+    if(twdEl) twdEl.textContent='≈ NT$ '+assets[idx].current.toLocaleString('zh-TW');
+  }
+  updatePriceDisplay(id);
+  updateCalc();
+  saveData();
+}
+
+function updatePnlDisplay(id){
+  const idx = assetIndex(id); if(idx<0) return;
+  const a = assets[idx];
+  const el = document.getElementById('pnl-'+id);
+  if(!el) return;
+  if(!a.costBasis || a.costBasis <= 0){
+    el.textContent='—'; el.className='pnl-zero'; return;
+  }
+  // Convert costBasis to TWD for fair comparison
+  const g_pnl = groups.find(x=>x.id===a.groupId);
+  const isUSD_pnl = g_pnl && g_pnl.currency==='USD';
+  const costInTWD = isUSD_pnl
+    ? Math.round(a.costBasis * (exchangeRate||32))
+    : a.costBasis;
+  const pnl = a.current - costInTWD;
+  const pnlPct = (pnl / costInTWD * 100);
+  const sign = pnl >= 0 ? '+' : '';
+  // Show in native currency
+  const clr = pnl>0?'var(--green)':pnl<0?'var(--red)':'var(--muted)';
+  if(isUSD_pnl){
+    const pnlUSD = pnl / (exchangeRate||32);
+    const bg_pnl = pnl>0?'rgba(76,175,130,.15)':pnl<0?'rgba(224,85,85,.15)':'rgba(255,255,255,.06)';
+    el.innerHTML =
+      `<div style="font-family:'Space Mono',monospace;font-size:15px;font-weight:700;color:${clr};line-height:1.2">${sign}$${Math.abs(pnlUSD).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} <span style="font-size:9px;opacity:.6;font-weight:400">USD</span></div>`+
+      `<div style="font-family:'Space Mono',monospace;font-size:11px;color:${clr};opacity:.7;margin-top:2px">${sign}NT$${Math.round(Math.abs(pnl)).toLocaleString('zh-TW')}</div>`+
+      `<div style="margin-top:6px"><span style="display:inline-block;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:${clr};background:${bg_pnl};padding:2px 8px;border-radius:6px">${sign}${pnlPct.toFixed(2)}%</span></div>`;
+  } else {
+    const bg_pnl2 = pnl>0?'rgba(76,175,130,.15)':pnl<0?'rgba(224,85,85,.15)':'rgba(255,255,255,.06)';
+    el.innerHTML =
+      `<div style="font-family:'Space Mono',monospace;font-size:15px;font-weight:700;color:${clr};line-height:1.2">${sign}NT$${Math.round(Math.abs(pnl)).toLocaleString('zh-TW')}</div>`+
+      `<div style="margin-top:6px"><span style="display:inline-block;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:${clr};background:${bg_pnl2};padding:2px 8px;border-radius:6px">${sign}${pnlPct.toFixed(2)}%</span></div>`;
+  }
+  el.className = pnl > 0 ? 'pnl-positive' : pnl < 0 ? 'pnl-negative' : 'pnl-zero';
+}
+
+function updatePriceDisplay(id){
+  const idx = assetIndex(id); if(idx<0) return;
+  const a = assets[idx];
+  const el = document.getElementById('priceDisplay-'+id);
+  if(!el) return;
+  const g = groups.find(x=>x.id===a.groupId);
+  const isUSD = g && g.currency==='USD';
+  if(a.lastPrice){
+    const t = new Date(a.lastPriceAt);
+    const ts = String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
+    el.innerHTML =
+      '<span style="color:var(--gold2);font-size:14px;font-weight:700;cursor:pointer" onclick="showPriceModal('+id+')">'
+      +(isUSD?'$ ':'')
+      +a.lastPrice.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})
+      +' <span style="font-size:10px;color:var(--muted)">'+(isUSD?'USD':'TWD')+'</span></span>'
+      +'<span style="font-size:9px;color:var(--muted);margin-left:6px">'+ts+'</span>';
+  } else {
+    el.innerHTML = '<span style="font-size:11px;color:#5b9bd5;cursor:pointer;text-decoration:underline" onclick="showPriceModal('+id+')">輸入股價</span>';
+  }
+}
+
+function showPriceModal(id){
+  const existing = document.getElementById('priceModal');
+  if(existing) existing.remove();
+  const idx2 = assetIndex(id); if(idx2<0) return;
+  const a = assets[idx2];
+  const g = groups.find(x=>x.id===a.groupId);
+  const isUSD = g && g.currency==='USD';
+  const currency = isUSD ? 'USD' : 'TWD';
+  const sym = getYahooTicker(a.ticker);
+  const modal = document.createElement('div');
+  modal.id = 'priceModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;';
+  modal.innerHTML =
+    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-width:360px;">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+        +'<div>'
+          +'<div style="font-size:16px;font-weight:700;color:var(--gold2)">'+a.ticker+'</div>'
+          +'<div style="font-size:10px;color:var(--muted);margin-top:2px">'+sym+' · '+currency+'</div>'
+        +'</div>'
+        +'<button id="priceModalClose" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;padding:4px">×</button>'
+      +'</div>'
+      +'<div class="input-label" style="margin-bottom:6px">輸入股價 ('+currency+')</div>'
+      +'<input id="priceModalInput" class="input-field" type="number" inputmode="decimal" step="0.01"'
+        +' value="'+(a.lastPrice||'')+'" placeholder="'+(isUSD?'例：98.50':'例：50.25')+'"'
+        +' style="width:100%;font-size:20px;margin-bottom:14px;text-align:left">'
+      +'<div style="display:flex;gap:8px;margin-bottom:12px">'
+        +'<button id="priceModalConfirm" style="flex:1;background:var(--gold);color:#0a0a0a;border:none;border-radius:10px;padding:13px;font-size:11px;font-weight:700;cursor:pointer;">確認</button>'
+        +'<button id="priceModalAuto" style="flex:1;background:rgba(91,155,213,.15);color:#5b9bd5;border:1px solid rgba(91,155,213,.4);border-radius:10px;padding:13px;font-size:11px;cursor:pointer;">🌐 自動取得</button>'
+      +'</div>'
+      +'<div id="priceModalStatus" style="font-size:10px;color:var(--muted);text-align:center;min-height:16px"></div>'
+    +'</div>';
+  document.body.appendChild(modal);
+
+  // Bind events programmatically (avoid inline onclick)
+  document.getElementById('priceModalClose').onclick = ()=> modal.remove();
+  document.getElementById('priceModalConfirm').onclick = ()=> confirmManualPrice(id);
+  document.getElementById('priceModalAuto').onclick = ()=> tryAutoFetch(id);
+
+  setTimeout(()=>{
+    const inp = document.getElementById('priceModalInput');
+    if(inp){ inp.focus(); inp.select(); }
+    if(inp) inp.addEventListener('keydown', e=>{ if(e.key==='Enter') confirmManualPrice(id); });
+  }, 50);
+}
+
+
+function confirmManualPrice(id){
+  const inp = document.getElementById('priceModalInput');
+  if(!inp) return;
+  const price = parseFloat(inp.value);
+  if(!price || price<=0){
+    inp.style.borderColor='var(--red)';
+    inp.focus();
+    return;
+  }
+  applyPrice(id, price);
+  const modal = document.getElementById('priceModal');
+  if(modal) modal.remove();
+  // Rebuild cards so price display updates immediately
+  buildGroupCards();
+  updateCalc();
+  setTimeout(initSliderFills, 50);
+  // Show feedback
+  const el = document.getElementById('saveStatus');
+  if(el){
+    const idx2 = assetIndex(id);
+    const ticker = idx2>=0 ? assets[idx2].ticker : '';
+    el.textContent = '✓ '+ticker+' 股價已更新';
+    el.style.opacity='1';
+    clearTimeout(el._t);
+    el._t = setTimeout(()=>{ el.style.opacity='0.4'; }, 2500);
+  }
+}
+
+async function tryAutoFetch(id){
+  const btn = document.getElementById('autoFetchBtn');
+  const status = document.getElementById('priceModalStatus');
+  const idx = assetIndex(id); if(idx<0) return;
+  const ticker = assets[idx].ticker;
+  const sym = getYahooTicker(ticker);
+  if(btn){ btn.textContent='⏳ 取得中…'; btn.disabled=true; }
+  if(status) status.textContent='連線中…';
+  const endpoints = [
+    'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
+    'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
+  ];
+  const proxies = [
+    'https://corsproxy.io/?',
+    'https://api.allorigins.win/get?url=',
+  ];
+  let found = null;
+  outer: for(const ep of endpoints){
+    for(const px of ['', ...proxies]){
+      try {
+        const url = px ? px+encodeURIComponent(ep) : ep;
+        const res = await fetch(url, {signal: AbortSignal.timeout(5000)});
+        const raw = await res.json();
+        const body = raw.contents ? JSON.parse(raw.contents) : raw;
+        const p = body?.chart?.result?.[0]?.meta?.regularMarketPrice;
+        if(p){ found=p; break outer; }
+      } catch(e){}
+    }
+  }
+  if(found){
+    const inp = document.getElementById('priceModalInput');
+    if(inp) inp.value = found.toFixed(2);
+    if(status) status.textContent = '✓ 取得成功：'+found.toFixed(2);
+    if(btn){ btn.textContent='✓ 成功'; }
+  } else {
+    if(status) status.textContent = '⚠ 無法自動取得，請手動輸入。';
+    if(btn){ btn.textContent='🌐 自動取得'; btn.disabled=false; }
+  }
+}
+
+async function fetchAllPrices(){
+  const btn = document.getElementById('fetchAllBtn');
+  const investable = assets.filter(a=>(a.leverage!=null?a.leverage:1)!==0);
+  if(!investable.length){ return; }
+
+  // Show loading state
+  if(btn){ btn.textContent='⏳ 更新中…'; btn.disabled=true; btn.style.opacity='0.7'; }
+
+  let updated=0, failed=[];
+  await Promise.all(investable.map(async a=>{
+    // Show per-asset loading
+    const priceBtn = document.getElementById('pricebtn-'+a.id);
+    if(priceBtn){ priceBtn.textContent='⏳'; priceBtn.disabled=true; }
+
+    const sym = getYahooTicker(a.ticker);
+    const endpoints = [
+      'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
+      'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
+    ];
+    const proxies = ['', 'https://corsproxy.io/?', 'https://api.allorigins.win/get?url='];
+    let found = null;
+    outer: for(const ep of endpoints){
+      for(const px of proxies){
+        try {
+          const url = px ? px+encodeURIComponent(ep) : ep;
+          const res = await fetch(url,{signal:AbortSignal.timeout(6000)});
+          const raw = await res.json();
+          const body = raw.contents ? JSON.parse(raw.contents) : raw;
+          const p = body?.chart?.result?.[0]?.meta?.regularMarketPrice;
+          if(p){ found=p; break outer; }
+        } catch(e){}
+      }
+    }
+
+    if(found){
+      const idx2 = assetIndex(a.id); if(idx2<0) return;
+      assets[idx2].lastPrice = found;
+      assets[idx2].lastPriceAt = Date.now();
+      if(assets[idx2].shares > 0){
+        const g = groups.find(x=>x.id===a.groupId);
+        const isUSD = g && g.currency==='USD';
+        assets[idx2].current = isUSD
+          ? Math.round(assets[idx2].shares * found * (exchangeRate||32))
+          : Math.round(assets[idx2].shares * found);
+        const curEl = document.getElementById('cur-'+a.id);
+        if(curEl && curEl!==document.activeElement)
+          curEl.value = isUSD ? (assets[idx2].current/(exchangeRate||32)).toFixed(0) : assets[idx2].current;
+        const twdEl = document.getElementById('twd-'+a.id);
+        if(twdEl) twdEl.textContent='≈ NT$ '+assets[idx2].current.toLocaleString('zh-TW');
+      }
+      updatePriceDisplay(a.id);
+      if(priceBtn){ priceBtn.textContent='✓'; priceBtn.style.color='var(--green)';
+        setTimeout(()=>{ priceBtn.textContent='↻'; priceBtn.style.color=''; priceBtn.disabled=false; },2000); }
+      updated++;
+    } else {
+      failed.push(a.ticker);
+      if(priceBtn){ priceBtn.textContent='✗'; priceBtn.style.color='var(--red)';
+        setTimeout(()=>{ priceBtn.textContent='↻'; priceBtn.style.color=''; priceBtn.disabled=false; },2000); }
+    }
+  }));
+
+  // Update UI
+  updateCalc(); saveData();
+
+  const now = new Date();
+  const ts = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+
+  if(btn){
+    if(failed.length===0){
+      btn.textContent='✓ 已更新 '+ts;
+      btn.style.color='var(--green)';
+      btn.style.opacity='1';
+      setTimeout(()=>{ btn.textContent='↻ 更新報價'; btn.style.color=''; btn.disabled=false; },3000);
+    } else if(updated===0){
+      btn.textContent='⚠ 無法連線';
+      btn.style.color='var(--red)';
+      btn.style.opacity='1';
+      setTimeout(()=>{ btn.textContent='↻ 更新報價'; btn.style.color=''; btn.disabled=false; },3000);
+    } else {
+      btn.textContent='↻ 部分更新 '+updated+'/'+(updated+failed.length);
+      btn.style.color='var(--gold)';
+      btn.style.opacity='1';
+      setTimeout(()=>{ btn.textContent='↻ 更新報價'; btn.style.color=''; btn.disabled=false; },3000);
+    }
+  }
+
+  // Update status bar
+  const el = document.getElementById('saveStatus');
+  if(el){
+    const msg = failed.length>0
+      ? '✓ '+updated+'支更新　✗ '+failed.join(' ')
+      : '✓ 全部更新 '+ts;
+    el.textContent=msg; el.style.opacity='1';
+    clearTimeout(el._t); el._t=setTimeout(()=>{el.style.opacity='0.4';},4000);
+  }
+  nextRefreshAt = Date.now() + AUTO_REFRESH_MS;
+  updateCountdown();
+}
+
+
+function fetchOneAsset(id){ showPriceModal(id); }
+
+async function fetchRate(){
+  const btn = document.querySelector('[onclick="fetchRate()"]');
+  if(btn){ btn.textContent='⏳'; btn.disabled=true; }
+  try {
+    const res = await fetch('https://open.er-api.com/v6/latest/USD');
+    const data = await res.json();
+    if(data && data.rates && data.rates.TWD){
+      const rate = Math.round(data.rates.TWD * 10) / 10;
+      updateExchangeRate(rate);
+      document.querySelectorAll('[id^="rateInput-"]').forEach(el=>{ el.value=rate; });
+      if(btn){ btn.textContent='✓'; btn.disabled=false;
+        setTimeout(()=>{ btn.textContent='更新'; },2000); }
+    }
+  } catch(e){
+    if(btn){ btn.textContent='更新'; btn.disabled=false; }
+    alert('無法取得即時匯率，請手動輸入。');
+  }
+}
+
+// ── Account switching ────────────────────────────────────────────────────────
+const DEFAULT_NAMES = { A:'帳戶 A', B:'帳戶 B' };
+
+function getAccountName(acct){
+  return localStorage.getItem('acctName_'+acct) || DEFAULT_NAMES[acct];
+}
+
+function updateAccountBar(){
+  const btnA = document.getElementById('acctBtnA');
+  const btnB = document.getElementById('acctBtnB');
+  if(btnA) btnA.textContent = getAccountName('A');
+  if(btnB) btnB.textContent = getAccountName('B');
+  if(btnA) btnA.classList.toggle('active', currentAccount==='A');
+  if(btnB) btnB.classList.toggle('active', currentAccount==='B');
+}
+
+function switchAccount(acct){
+  if(acct === currentAccount) return;
+  // Save current state first
+  saveData();
+  currentAccount = acct;
+  localStorage.setItem('currentAccount', acct);
+  // Reset to defaults then load new account
+  uid=0; gid=0;
+  groups=[makeGroup('美股',50,'USD'),makeGroup('台股',50,'TWD')];
+  assets=[
+    makeAsset(1,'VT','Vanguard全球股票',40,5374336,10.58,1),
+    makeAsset(1,'QQQ','Invesco那斯達克100',40,0,21.9,1),
+    makeAsset(1,'SMH','VanEck半導體ETF',20,1940760,31.3,1),
+    makeAsset(2,'00631L','元大台灣50正2',50,2644056,45.5,2),
+    makeAsset(2,'正二現金','備用加碼金',50,1954866,0,0),
+  ];
+  document.getElementById('withdrawInput').value=0;
+  const loaded = loadData();
+  buildGroupCards();
+  buildReturnCards();
+  updateGroupSelect();
+  updateCalc();
+  updateAccountBar();
+  startAutoRefresh(); // restart timer for new account
+  setTimeout(initSliderFills, 50);
+  // Flash indicator
+  const el = document.getElementById('saveStatus');
+  if(el){
+    el.textContent='切換至 '+getAccountName(acct);
+    el.style.opacity='1';
+    clearTimeout(el._t);
+    el._t=setTimeout(()=>{ el.style.opacity='0.4'; },2000);
+  }
+}
+
+function editAccountName(){
+  // Remove existing modal if any
+  const existing = document.getElementById('acctNameModal');
+  if(existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'acctNameModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;';
+  modal.innerHTML = `
+    <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-width:340px;">
+      <div style="font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;color:var(--gold);margin-bottom:16px;">帳戶重新命名</div>
+      <input id="acctNameInput" class="input-field" type="text"
+        value="${getAccountName(currentAccount)}"
+        placeholder="輸入帳戶名稱"
+        style="width:100%;font-size:16px;margin-bottom:14px;">
+      <div style="display:flex;gap:8px;">
+        <button onclick="confirmAccountName()"
+          style="flex:1;background:var(--gold);color:#0a0a0a;border:none;border-radius:10px;padding:13px;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;cursor:pointer;">確認</button>
+        <button onclick="document.getElementById('acctNameModal').remove()"
+          style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:10px;padding:13px 16px;font-family:'Space Mono',monospace;font-size:11px;cursor:pointer;">取消</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  setTimeout(()=>{
+    const inp = document.getElementById('acctNameInput');
+    if(inp){ inp.focus(); inp.select(); }
+  }, 50);
+}
+
+function confirmAccountName(){
+  const inp = document.getElementById('acctNameInput');
+  if(!inp) return;
+  const name = inp.value.trim();
+  if(!name) return;
+  localStorage.setItem('acctName_'+currentAccount, name);
+  updateAccountBar();
+  document.getElementById('acctNameModal').remove();
+}
+
+// ── Group mini summary (Design A: split bar) ────────────────────────────────
+function refreshGroupMini(){
+  const total = totalCurrent();
+  const wAmt  = Math.min(Number(document.getElementById('withdrawInput')?.value)||0, total);
+  const after = Math.max(0, total - wAmt);
+
+  // Current exposure: actual holdings × leverage
+  const totalCurExp = assets.reduce((s,a)=>{
+    const lev = a.leverage!=null?a.leverage:1;
+    return s + a.current * lev;
+  }, 0);
+  const curExpPct = total>0 ? totalCurExp/total*100 : 0;
+
+  // Target exposure: after rebalance × leverage
+  const totalTgtExpAmt = assets.reduce((s,a)=>{
+    const lev = a.leverage!=null?a.leverage:1;
+    return s + (after * assetEffectivePct(a)/100) * lev;
+  }, 0);
+  const tgtExpPct = after>0 ? totalTgtExpAmt/after*100 : 0;
+
+  const totalTgtExpPct = curExpPct; // keep for color logic
+  const expClr = tgtExpPct>120?'var(--red)':tgtExpPct>100?'var(--gold)':'var(--green)';
+  const curClr = curExpPct>120?'var(--red)':curExpPct>100?'var(--gold)':'var(--green)';
+
+  groups.forEach(g=>{
+    const el = document.getElementById('gmini-'+g.id);
+    if(!el) return;
+    const gAssets = assetsInGroup(g.id);
+    if(gAssets.length === 0){ el.innerHTML=''; return; }
+
+    const innerSum = gAssets.reduce((s,a)=>s+a.innerPct,0)||1;
+
+    // Split bar segments
+    let segments = '';
+    let labels   = '';
+    gAssets.forEach((a,i)=>{
+      const lev     = a.leverage!=null?a.leverage:1;
+      const normPct = a.innerPct/innerSum*100;
+      const color   = colorFor(assets.findIndex(x=>x.id===a.id));
+      const isCash  = lev===0;
+      const bdr     = i<gAssets.length-1 ? 'border-right:2px solid rgba(0,0,0,.4);' : '';
+
+      segments +=
+        '<div style="flex:'+normPct+';background:'+(isCash?'rgba(255,255,255,.04)':color+'22')+';'+bdr+'min-width:0;position:relative;transition:flex .2s">'
+          +'<div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:'+(isCash?'rgba(255,255,255,.15)':color)+';border-radius:0 0 2px 2px"></div>'
+        +'</div>';
+
+      labels +=
+        '<div style="flex:1;text-align:center;padding:6px 4px 2px;min-width:0;display:flex;flex-direction:column;align-items:center">'
+          // Ticker row — fixed height so % aligns
+          +'<div style="display:flex;align-items:center;gap:3px;height:18px;overflow:hidden">'
+            +'<div style="width:5px;height:5px;border-radius:1px;background:'+color+';flex-shrink:0"></div>'
+            +'<div style="font-size:9px;font-weight:700;color:'+color+';white-space:nowrap">'+a.ticker+'</div>'
+          +'</div>'
+          // % — always same vertical position
+          +'<div style="font-size:22px;font-weight:700;color:var(--text);line-height:1;margin-top:2px">'+(normPct).toFixed(0)+'%</div>'
+          +'<div style="font-size:9px;color:var(--muted);margin-top:2px">'+(isCash?'現金':'×'+lev)+'</div>'
+        +'</div>';
+    });
+
+    el.innerHTML =
+      // Exposure header
+      '<div style="display:flex;justify-content:center;align-items:center;gap:16px;margin-bottom:10px">'
+        +'<div style="text-align:center">'
+          +'<div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px">現在曝險</div>'
+          +'<div style="font-family:\'Space Mono\',monospace;font-size:22px;font-weight:700;color:'+curClr+';letter-spacing:-1px;line-height:1">'+curExpPct.toFixed(1)+'%</div>'
+        +'</div>'
+        +'<div style="font-size:14px;color:var(--muted)">→</div>'
+        +'<div style="text-align:center">'
+          +'<div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px">再平衡後</div>'
+          +'<div style="font-family:\'Space Mono\',monospace;font-size:22px;font-weight:700;color:'+expClr+';letter-spacing:-1px;line-height:1">'+tgtExpPct.toFixed(1)+'%</div>'
+        +'</div>'
+      +'</div>'
+      // Split bar
+      +'<div style="display:flex;height:44px;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,.08);gap:2px">'+segments+'</div>'
+      // Labels
+      +'<div style="display:flex;margin-top:6px;align-items:flex-start;justify-content:center;gap:12px">'+labels+'</div>';
+  });
+}
+
+// ── updateCalc ────────────────────────────────────────────────────────────────
+function updateCalc(){
+  refreshHoldings();
+  refreshGroupMini();
+  refreshRebalance();
+  refreshReturns();
+  saveData();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+// ── Auto price refresh ───────────────────────────────────────────────────────
+const AUTO_REFRESH_MS = 15 * 60 * 1000; // 15 minutes
+let autoRefreshTimer = null;
+let nextRefreshAt = null;
+let countdownTimer = null;
+
+function startAutoRefresh(){
+  stopAutoRefresh();
+  // Auto-fetch now if any asset has shares set
+  const hasShares = assets.some(a => (a.shares||0) > 0);
+  if(hasShares) silentFetchAll();
+  // Schedule repeat every 15 min
+  nextRefreshAt = Date.now() + AUTO_REFRESH_MS;
+  autoRefreshTimer = setInterval(()=>{
+    silentFetchAll();
+    nextRefreshAt = Date.now() + AUTO_REFRESH_MS;
+  }, AUTO_REFRESH_MS);
+  // Countdown display
+  countdownTimer = setInterval(updateCountdown, 1000);
+  updateCountdown();
+}
+
+function stopAutoRefresh(){
+  if(autoRefreshTimer){ clearInterval(autoRefreshTimer); autoRefreshTimer=null; }
+  if(countdownTimer){ clearInterval(countdownTimer); countdownTimer=null; }
+}
+
+function updateCountdown(){
+  const el = document.getElementById('refreshCountdown');
+  if(!el || !nextRefreshAt) return;
+  const ms = Math.max(0, nextRefreshAt - Date.now());
+  const mins = Math.floor(ms / 60000);
+  const secs = Math.floor((ms % 60000) / 1000);
+  if(ms <= 0){
+    el.textContent = '更新中…';
+  } else {
+    el.textContent = '下次更新 '+mins+':'+String(secs).padStart(2,'0');
+  }
+}
+
+async function silentFetchAll(){
+  const investable = assets.filter(a=>(a.leverage!=null?a.leverage:1)!==0 && (a.shares||0)>0);
+  if(!investable.length) return;
+  const el = document.getElementById('refreshCountdown');
+  if(el) el.textContent='↻ 更新中…';
+  let updated = 0;
+  await Promise.all(investable.map(async a=>{
+    const sym = getYahooTicker(a.ticker);
+    const endpoints = [
+      'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
+      'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
+    ];
+    const proxies = ['', 'https://corsproxy.io/?', 'https://api.allorigins.win/get?url='];
+    let found = null;
+    outer: for(const ep of endpoints){
+      for(const px of proxies){
+        try {
+          const url = px ? px+encodeURIComponent(ep) : ep;
+          const res = await fetch(url, {signal: AbortSignal.timeout(6000)});
+          const raw = await res.json();
+          const body = raw.contents ? JSON.parse(raw.contents) : raw;
+          const p = body?.chart?.result?.[0]?.meta?.regularMarketPrice;
+          if(p){ found=p; break outer; }
+        } catch(e){}
+      }
+    }
+    if(found){
+      const idx = assetIndex(a.id); if(idx<0) return;
+      assets[idx].lastPrice = found;
+      assets[idx].lastPriceAt = Date.now();
+      const g = groups.find(x=>x.id===a.groupId);
+      const isUSD = g && g.currency==='USD';
+      assets[idx].current = isUSD
+        ? Math.round(a.shares * found * (exchangeRate||32))
+        : Math.round(a.shares * found);
+      const curEl = document.getElementById('cur-'+a.id);
+      if(curEl && curEl !== document.activeElement)
+        curEl.value = isUSD ? (assets[idx].current/(exchangeRate||32)).toFixed(0) : assets[idx].current;
+      const twdEl = document.getElementById('twd-'+a.id);
+      if(twdEl) twdEl.textContent='≈ NT$ '+assets[idx].current.toLocaleString('zh-TW');
+      updatePriceDisplay(a.id);
+      updated++;
+    }
+  }));
+  if(updated > 0){ updateCalc(); saveData(); }
+  // Update status
+  const now = new Date();
+  const ts = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  const saveEl = document.getElementById('saveStatus');
+  if(saveEl && updated>0){
+    saveEl.textContent='股價已更新 '+ts+' ('+updated+'支)';
+    saveEl.style.opacity='1';
+    clearTimeout(saveEl._t);
+    saveEl._t = setTimeout(()=>{ saveEl.style.opacity='0.4'; },3000);
+  }
+  nextRefreshAt = Date.now() + AUTO_REFRESH_MS;
+  updateCountdown();
+}
+
+// ── Adjust content padding to match actual fixed-top height on desktop
+function initSliderFills(){
+  document.querySelectorAll('input[type=range]').forEach(updateSliderFill);
+}
+
+function adjustContentPadding(){
+  const ft = document.querySelector('.fixed-top');
+  const ct = document.querySelector('.content');
+  if(!ft || !ct) return;
+  const h = ft.getBoundingClientRect().height;
+  if(window.innerWidth >= 768){
+    ct.style.paddingTop = (h + 8) + 'px';
+  } else {
+    ct.style.paddingTop = '';
+  }
+}
+window.addEventListener('load', ()=>{
+  adjustContentPadding();
+  initSliderFills();
+});
+window.addEventListener('resize', adjustContentPadding);
+
+// ── Defensive save: iOS background / tab close ────────────────────────────────
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'hidden') saveData();
+});
+window.addEventListener('beforeunload', ()=>{ saveData(); });
+window.addEventListener('pagehide', ()=>{ saveData(); }); // iOS Safari
+
+// ── Enter key: blur input (dismiss keyboard, don't jump to next field) ─────────
+document.addEventListener('keydown', e=>{
+  if(e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
+  // Allow modal confirm inputs (id contains 'Price' or 'Modal') to handle first
+  const id = e.target.id || '';
+  if(id.includes('Price') || id.includes('Modal') || id.includes('Confirm')) return;
+  e.preventDefault();
+  e.target.blur();
+});
+
+currentAccount = localStorage.getItem('currentAccount') || 'A';
+const savedAt = loadData();
+buildGroupCards();
+buildReturnCards();
+updateGroupSelect();
+updateCalc();
+updateAccountBar();
+startAutoRefresh();
+setTimeout(initSliderFills, 50);
+if(savedAt){
+  const d=new Date(savedAt);
+  const ts=d.toLocaleDateString('zh-TW')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  const el=document.getElementById('saveStatus');
+  if(el){ el.textContent='上次儲存 '+ts; el.style.opacity='0.5'; }
+}
+</script>
+</div><!-- end app-shell -->
+</body>
+</html>
