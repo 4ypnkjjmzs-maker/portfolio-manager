@@ -2920,23 +2920,39 @@ async function autoSyncToGist(){
     public: false,
     files: { [GIST_FILENAME]: { content: JSON.stringify(state) } }
   };
-  try {
-    const gistId = getGistId();
-    const url = gistId
-      ? 'https://api.github.com/gists/'+gistId
-      : 'https://api.github.com/gists';
-    const res = await fetch(url, {
-      method: gistId ? 'PATCH' : 'POST',
-      headers: { Authorization:'Bearer '+token, 'Content-Type':'application/json' },
-      body: JSON.stringify(body)
-    });
-    if(!res.ok) throw new Error(res.status);
-    const data = await res.json();
-    localStorage.setItem('gh_gist_id', data.id);
-    localStorage.setItem('gh_gist_savedAt', String(state.savedAt));
-    showCloudIndicator('ok');
-  } catch(e){
-    showCloudIndicator('error');
+  // Retry up to 3 times with increasing delay (handles transient network errors)
+  for(let attempt=1; attempt<=3; attempt++){
+    try {
+      let gistId = getGistId();
+      const url = gistId
+        ? 'https://api.github.com/gists/'+gistId
+        : 'https://api.github.com/gists';
+      const res = await fetch(url, {
+        method: gistId ? 'PATCH' : 'POST',
+        headers: { Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(10000)
+      });
+      // If gist was deleted (404) or invalid (422), clear stale ID and find/create fresh
+      if(res.status === 404 || res.status === 422){
+        localStorage.removeItem('gh_gist_id');
+        const foundId = await findPortfolioGist(token);
+        // If found another existing gist, retry with it; else next loop creates new (POST)
+        continue;
+      }
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      const data = await res.json();
+      localStorage.setItem('gh_gist_id', data.id);
+      localStorage.setItem('gh_gist_savedAt', String(state.savedAt));
+      showCloudIndicator('ok');
+      return; // Success — stop retrying
+    } catch(e){
+      if(attempt < 3){
+        await new Promise(r=>setTimeout(r, attempt*1000));
+      } else {
+        showCloudIndicator('error');
+      }
+    }
   }
 }
 
@@ -2954,6 +2970,7 @@ async function autoLoadFromGist(){
     const res = await fetch('https://api.github.com/gists/'+gistId, {
       headers: { Authorization:'Bearer '+token }
     });
+    if(res.status === 404){ localStorage.removeItem('gh_gist_id'); return; }
     if(!res.ok) return;
     const data = await res.json();
     const content = data.files[GIST_FILENAME]?.content;
@@ -3017,6 +3034,7 @@ async function checkGistForUpdates(){
       headers:{ Authorization:'Bearer '+token },
       cache:'no-store'
     });
+    if(res.status === 404){ localStorage.removeItem('gh_gist_id'); await findPortfolioGist(token); return; }
     if(!res.ok) return;
     const data = await res.json();
     const content = data.files[GIST_FILENAME]?.content;
@@ -3051,6 +3069,13 @@ document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState === 'visible') checkGistForUpdates();
 });
 window.addEventListener('focus', ()=>{ checkGistForUpdates(); });
+// When network reconnects, push local data and check for updates
+window.addEventListener('online', ()=>{
+  if(getGistToken()){
+    autoSyncToGist();
+    setTimeout(checkGistForUpdates, 2000);
+  }
+});
 
 // ── Defensive save: iOS background / tab close ────────────────────────────────
 document.addEventListener('visibilitychange', ()=>{
