@@ -2982,6 +2982,55 @@ function showCloudIndicator(state){
   }
 }
 
+// ── Near-instant Gist sync (poll every 10s when visible + on focus) ─────────
+let _gistPollTimer = null;
+
+async function checkGistForUpdates(){
+  const token = getGistToken();
+  const gistId = getGistId();
+  if(!token || !gistId) return;
+  // Skip if user is actively editing (an input is focused)
+  if(document.activeElement && document.activeElement.tagName === 'INPUT') return;
+  try {
+    const res = await fetch('https://api.github.com/gists/'+gistId, {
+      headers:{ Authorization:'Bearer '+token },
+      cache:'no-store'
+    });
+    if(!res.ok) return;
+    const data = await res.json();
+    const content = data.files[GIST_FILENAME]?.content;
+    if(!content) return;
+    const s = JSON.parse(content);
+    const localSavedAt = Number(localStorage.getItem('gh_gist_savedAt'))||0;
+    const gistSavedAt = s.savedAt||0;
+    if(gistSavedAt <= localSavedAt) return; // Already up to date
+    // Gist is newer — silently update
+    groups=s.groups||groups; assets=s.assets;
+    uid=s.uid||Math.max(...assets.map(a=>a.id),0);
+    gid=s.gid||Math.max(...groups.map(g=>g.id),0);
+    if(s.withdraw) document.getElementById('withdrawInput').value=s.withdraw;
+    if(s.exchangeRate) exchangeRate=Number(s.exchangeRate)||32;
+    localStorage.setItem(accountStoreKey(),JSON.stringify({...s,savedAt:s.savedAt}));
+    localStorage.setItem('gh_gist_savedAt',String(gistSavedAt));
+    buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
+    showCloudIndicator('loaded');
+  } catch(e){}
+}
+
+function startGistPollTimer(){
+  // Poll every 10 seconds while the tab is visible
+  clearInterval(_gistPollTimer);
+  _gistPollTimer = setInterval(()=>{
+    if(document.visibilityState === 'visible') checkGistForUpdates();
+  }, 10 * 1000);
+}
+
+// Immediate check when user switches back to the app
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible') checkGistForUpdates();
+});
+window.addEventListener('focus', ()=>{ checkGistForUpdates(); });
+
 // ── Defensive save: iOS background / tab close ────────────────────────────────
 document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState === 'hidden') saveData();
@@ -3001,7 +3050,9 @@ document.addEventListener('keydown', e=>{
 
 currentAccount = localStorage.getItem('currentAccount') || 'A';
 const savedAt = loadData();
-autoLoadFromGist(); // Auto-load from cloud if newer
+autoLoadFromGist(); // Auto-load from cloud if new
+startGistPollTimer(); // Poll Gist every 3 miner
+startGistPollTimer(); // Poll for Gist updates every 3 min
 buildGroupCards();
 buildReturnCards();
 updateGroupSelect();
