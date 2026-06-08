@@ -315,8 +315,8 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
       <span id="saveStatus" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--green);letter-spacing:1px;opacity:0.5;transition:opacity .4s"></span>
       <span id="refreshCountdown" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--gold2);letter-spacing:1px;opacity:0.7"></span>
       <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">
-        <button onclick="shareJSON()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">匯出</button>
-        <button onclick="document.getElementById('importInput').click()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">匯入</button>
+        
+        
         <button onclick="cloudSync()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:#9b7fd4;background:rgba(155,127,212,.12);border:1px solid rgba(155,127,212,.35);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">雲端</button>
         <button id="fetchAllBtn" onclick="fetchAllPrices()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0;color:var(--gold2);background:rgba(232,201,122,.12);border:1px solid rgba(232,201,122,.35);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">更新報價</button>
         <button onclick="saveData();switchTab('rebalance')" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0;color:#5b9bd5;background:rgba(91,155,213,.12);border:1px solid rgba(91,155,213,.35);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">再平衡</button>
@@ -2661,6 +2661,25 @@ async function fetchRate(){
   return found;
 }
 
+
+// ── Find portfolio Gist by searching user's gists ────────────────────────────
+async function findPortfolioGist(token){
+  try {
+    const res = await fetch('https://api.github.com/gists?per_page=50', {
+      headers: { Authorization:'Bearer '+token }
+    });
+    if(!res.ok) return null;
+    const gists = await res.json();
+    // Find the gist that contains our portfolio file
+    const found = gists.find(g => g.files && g.files[GIST_FILENAME]);
+    if(found){
+      localStorage.setItem('gh_gist_id', found.id);
+      return found.id;
+    }
+    return null;
+  } catch(e){ return null; }
+}
+
 // ── GitHub Gist Cloud Sync ───────────────────────────────────────────────────
 const GIST_FILENAME = 'portfolio-data.json';
 
@@ -2773,8 +2792,12 @@ async function saveToGist(){
 async function loadFromGist(){
   const token = getGistToken();
   if(!token){ setupGistToken(); return; }
-  const gistId = getGistId();
-  if(!gistId){ showCloudStatus('⚠ 請先「儲存到雲端」一次', 'var(--gold)'); return; }
+  let gistId = getGistId();
+  if(!gistId){
+    showCloudStatus('🔍 搜尋雲端資料…', 'var(--text2)');
+    gistId = await findPortfolioGist(token);
+    if(!gistId){ showCloudStatus('⚠ 找不到雲端資料，請先在另一台儲存', 'var(--gold)'); return; }
+  }
   showCloudStatus('⬇ 讀取中…', 'var(--text2)');
   try {
     const res = await fetch('https://api.github.com/gists/'+gistId, {
@@ -2899,8 +2922,13 @@ async function autoSyncToGist(){
 // On page load: auto-load from Gist if it's newer than local data
 async function autoLoadFromGist(){
   const token = getGistToken();
-  const gistId = getGistId();
-  if(!token || !gistId) return;
+  if(!token) return;
+  // If no Gist ID stored, try to find it by searching user's gists
+  let gistId = getGistId();
+  if(!gistId){
+    gistId = await findPortfolioGist(token);
+    if(!gistId) return; // No portfolio gist found yet
+  }
   try {
     const res = await fetch('https://api.github.com/gists/'+gistId, {
       headers: { Authorization:'Bearer '+token }
