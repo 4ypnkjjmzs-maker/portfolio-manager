@@ -2663,21 +2663,40 @@ async function fetchRate(){
 
 
 // ── Find portfolio Gist by searching user's gists ────────────────────────────
+// Always picks the OLDEST matching gist so all devices converge on the same one.
 async function findPortfolioGist(token){
   try {
-    const res = await fetch('https://api.github.com/gists?per_page=50', {
-      headers: { Authorization:'Bearer '+token }
+    const res = await fetch('https://api.github.com/gists?per_page=100', {
+      headers: { Authorization:'Bearer '+token },
+      cache:'no-store'
     });
     if(!res.ok) return null;
     const gists = await res.json();
-    // Find the gist that contains our portfolio file
-    const found = gists.find(g => g.files && g.files[GIST_FILENAME]);
-    if(found){
-      localStorage.setItem('gh_gist_id', found.id);
-      return found.id;
-    }
-    return null;
+    // Find ALL gists containing our portfolio file
+    const matches = gists.filter(g => g.files && g.files[GIST_FILENAME]);
+    if(!matches.length) return null;
+    // Sort by updated date descending → pick the most recently updated (has latest data)
+    matches.sort((a,b)=> new Date(b.updated_at) - new Date(a.updated_at));
+    const canonical = matches[0];
+    localStorage.setItem('gh_gist_id', canonical.id);
+    return canonical.id;
   } catch(e){ return null; }
+}
+
+// Re-link to the canonical (oldest) gist — clears local id and re-resolves
+async function relinkCloud(){
+  const token = getGistToken();
+  if(!token){ setupGistToken(); return; }
+  showCloudStatus('🔗 重新連結中…', 'var(--text2)');
+  localStorage.removeItem('gh_gist_id');
+  const id = await findPortfolioGist(token);
+  if(id){
+    // Load the canonical gist's data immediately
+    localStorage.removeItem('gh_gist_savedAt'); // force reload
+    await loadFromGist();
+  } else {
+    showCloudStatus('⚠ 找不到雲端資料', 'var(--gold)');
+  }
 }
 
 // ── GitHub Gist Cloud Sync ───────────────────────────────────────────────────
@@ -2705,6 +2724,7 @@ function cloudSync(){
       +'<div style="display:flex;flex-direction:column;gap:10px">'
         +'<button id="cloudSave" style="background:rgba(155,127,212,.2);color:#c9b3f0;border:1px solid rgba(155,127,212,.4);border-radius:10px;padding:14px;font-size:13px;font-weight:700;cursor:pointer">⬆ 儲存到雲端</button>'
         +'<button id="cloudLoad" style="background:rgba(76,175,130,.12);color:var(--green);border:1px solid rgba(76,175,130,.35);border-radius:10px;padding:14px;font-size:13px;font-weight:700;cursor:pointer">⬇ 從雲端讀取</button>'
+        +'<button id="cloudRelink" style="background:none;color:var(--text2);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:12px;cursor:pointer">🔗 重新連結（修正不同步）</button>'
         +'<button id="cloudToken" style="background:none;color:var(--text2);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:12px;cursor:pointer">⚙ 設定 GitHub Token</button>'
         +'<button id="cloudClose" style="background:none;color:var(--muted);border:none;padding:8px;font-size:12px;cursor:pointer">關閉</button>'
       +'</div>'
@@ -2714,6 +2734,7 @@ function cloudSync(){
   document.getElementById('cloudSave').onclick  = ()=>{ modal.remove(); saveToGist(); };
   document.getElementById('cloudLoad').onclick  = ()=>{ modal.remove(); loadFromGist(); };
   document.getElementById('cloudToken').onclick = ()=>{ modal.remove(); setupGistToken(); };
+  document.getElementById('cloudRelink').onclick = ()=>{ modal.remove(); relinkCloud(); };
   modal.onclick = (e)=>{ if(e.target===modal) modal.remove(); };
 }
 
