@@ -479,24 +479,6 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
 
 <script>
 // ── Palette ───────────────────────────────────────────────────────────────────
-// Update slider gradient fill based on current value
-function updateSliderFill(slider){
-  if(!slider) return;
-  const min = parseFloat(slider.min)||0;
-  const max = parseFloat(slider.max)||100;
-  const val = parseFloat(slider.value)||0;
-  const ratio = (max>min) ? (val - min) / (max - min) : 0;
-  // Account for thumb width: thumb centre travels from (thumbW/2) to (trackW - thumbW/2)
-  const thumbW = 28;
-  const trackW = slider.offsetWidth || 300;
-  const centerPx = (thumbW/2) + ratio * (trackW - thumbW);
-  const pct = (centerPx / trackW * 100).toFixed(2)+'%';
-  slider.style.setProperty('--val', pct);
-}
-// Apply to all sliders on input
-document.addEventListener('input', e=>{
-  if(e.target && e.target.type==='range') updateSliderFill(e.target);
-});
 
 const PALETTE = ['#c9a84c','#4caf82','#5b9bd5','#e05555','#9b7fd4',
                  '#e8944a','#4bc4cf','#b5cc3f','#d45b8a','#7ec8a4'];
@@ -2071,13 +2053,13 @@ async function tryAutoFetch(id){
     'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
     'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
   ];
-  const proxies = ['', 'https://corsproxy.io/?', 'https://api.allorigins.win/get?url='];
+  const proxies = ['', 'https://corsproxy.io/?url=', 'https://api.allorigins.win/raw?url=', 'https://api.allorigins.win/get?url='];
   let found = null;
   outer: for(const ep of endpoints){
     for(const px of proxies){
       try {
         const bust2='&_t='+Date.now(); const ep2b=ep+(ep.includes('?')?bust2:bust2.replace('&','?')); const url = px ? px+encodeURIComponent(ep2b) : ep2b;
-        const res = await fetch(url, {signal:AbortSignal.timeout(6000)});
+        const res = await fetch(url, {signal:AbortSignal.timeout(6000),cache:'no-store'});
         const raw = await res.json();
         const body = raw.contents ? JSON.parse(raw.contents) : raw;
         const p = body?.chart?.result?.[0]?.meta?.regularMarketPrice;
@@ -2105,7 +2087,7 @@ async function fetchAllPrices(){
       'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
       'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
     ];
-    const proxies = ['', 'https://corsproxy.io/?', 'https://api.allorigins.win/get?url='];
+    const proxies = ['', 'https://corsproxy.io/?url=', 'https://api.allorigins.win/raw?url=', 'https://api.allorigins.win/get?url='];
     let found = null;
     outer: for(const ep of endpoints){
       for(const px of proxies){
@@ -2173,7 +2155,7 @@ async function silentFetchAll(){
       'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
       'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
     ];
-    const proxies = ['', 'https://corsproxy.io/?', 'https://api.allorigins.win/get?url='];
+    const proxies = ['', 'https://corsproxy.io/?url=', 'https://api.allorigins.win/raw?url=', 'https://api.allorigins.win/get?url='];
     let found = null;
     outer: for(const ep of endpoints){
       for(const px of proxies){
@@ -2493,7 +2475,7 @@ async function fetchOneAsset(id){
   const sym=getYahooTicker(a.ticker);
   const endpoints=['https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
                    'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d'];
-  const proxies=['','https://corsproxy.io/?','https://api.allorigins.win/get?url='];
+  const proxies=['', 'https://corsproxy.io/?url=', 'https://api.allorigins.win/raw?url=', 'https://api.allorigins.win/get?url='];
   let found=null;
   outer: for(const ep of endpoints){
     for(const px of proxies){
@@ -2638,7 +2620,7 @@ async function fetchRate(){
     'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
     'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
   ];
-  const proxies = ['', 'https://corsproxy.io/?', 'https://api.allorigins.win/get?url='];
+  const proxies = ['', 'https://corsproxy.io/?url=', 'https://api.allorigins.win/raw?url=', 'https://api.allorigins.win/get?url='];
   let found = null;
   outer: for(const ep of endpoints){
     for(const px of proxies){
