@@ -14,13 +14,15 @@
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif;min-height:100vh;overflow-x:hidden;}
 
-.header{padding:28px 20px 16px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#131313,var(--bg));position:sticky;top:0;z-index:100;}
+/* fixed-top 在所有裝置都生效（手機亦同），避免 iOS sticky 跳動問題 */
+.fixed-top{position:fixed;top:0;left:0;right:0;z-index:200;background:var(--bg);box-sizing:border-box;}
+.header{padding:24px 20px 14px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#131313,var(--bg));box-sizing:border-box;}
 .header-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;}
 .app-title{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:4px;color:var(--text2);text-transform:uppercase;}
 .total-label{font-size:11px;color:var(--muted);}
 .total-value{font-family:'Space Mono',monospace;font-size:26px;font-weight:700;color:var(--gold2);letter-spacing:-1px;}
 
-.tabs{display:flex;border-bottom:1px solid var(--border);padding:0 20px;background:var(--bg);position:sticky;top:76px;z-index:99;overflow-x:auto;}
+.tabs{display:flex;border-bottom:1px solid var(--border);padding:0 20px;background:var(--bg);overflow-x:auto;-webkit-overflow-scrolling:touch;}
 .tab{font-size:11px;letter-spacing:2px;color:var(--muted);padding:13px 0;margin-right:24px;cursor:pointer;border-bottom:2px solid transparent;transition:all .1s;font-family:'Space Mono',monospace;text-transform:uppercase;white-space:nowrap;flex-shrink:0;}
 .tab.active{color:var(--gold);border-bottom-color:var(--gold);}
 
@@ -297,12 +299,14 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
     
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-    <div class="total-value" id="totalDisplay">—</div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;flex:1">
+      <div class="total-value" id="totalDisplay" style="min-width:0;overflow:hidden;text-overflow:ellipsis">—</div>
+      <span id="rateDisplay" style="font-family:'Space Mono',monospace;font-size:11px;color:#5b9bd5;letter-spacing:1px;opacity:0.9;white-space:nowrap">USD/TWD —</span>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
       <span id="cloudIndicator" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);opacity:0.35;white-space:nowrap"></span>
       <span id="saveStatus" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--green);letter-spacing:1px;opacity:0.5;transition:opacity .4s"></span>
       <span id="refreshCountdown" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--gold2);letter-spacing:1px;opacity:0.7"></span>
-      <span id="rateDisplay" style="font-family:'Space Mono',monospace;font-size:9px;color:#5b9bd5;letter-spacing:1px;opacity:0.85;white-space:nowrap">USD/TWD —</span>
       <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">
         
         
