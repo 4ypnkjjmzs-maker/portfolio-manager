@@ -2957,7 +2957,7 @@ let _gistSyncTimer = null;
 function scheduleGistSync(){
   if(!getGistToken()) return; // No token → skip
   clearTimeout(_gistSyncTimer);
-  _gistSyncTimer = setTimeout(autoSyncToGist, 2000);
+  _gistSyncTimer = setTimeout(autoSyncToGist, 8000);
   showCloudIndicator('pending');
 }
 
@@ -2991,10 +2991,16 @@ async function autoSyncToGist(){
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(10000)
       });
-      // If rate limited (403), back off 15 min and stop
-      if(res.status === 403){
-        _rateLimitedUntil = Date.now() + 15*60*1000;
+      // If rate limited (403 / 429), back off 30 min and stop
+      if(res.status === 403 || res.status === 429){
+        _rateLimitedUntil = Date.now() + 30*60*1000;
         showCloudIndicator('error');
+        const el = document.getElementById('saveStatus');
+        if(el){
+          el.textContent = '⏸ API 速率限制，30 分鐘後重試';
+          el.style.color = 'var(--gold)';
+          el.style.opacity = '1';
+        }
         return;
       }
       // If gist was deleted (404), clear stale ID; next attempt creates new
@@ -3100,7 +3106,7 @@ async function checkGistForUpdates(){
       cache:'no-store'
     });
     if(res.status === 404){ localStorage.removeItem('gh_gist_id'); return; }
-    if(res.status === 403){ _rateLimitedUntil = Date.now() + 15*60*1000; return; }
+    if(res.status === 403 || res.status === 429){ _rateLimitedUntil = Date.now() + 30*60*1000; return; }
     if(!res.ok) return;
     const data = await res.json();
     const content = data.files[GIST_FILENAME]?.content;
@@ -3123,18 +3129,25 @@ async function checkGistForUpdates(){
 }
 
 function startGistPollTimer(){
-  // Poll every 10 seconds while the tab is visible
+  // Poll every 5 minutes while the tab is visible (rate-limit friendly)
   clearInterval(_gistPollTimer);
   _gistPollTimer = setInterval(()=>{
     if(document.visibilityState === 'visible') checkGistForUpdates();
-  }, 60 * 1000); // 60s poll (focus/visibility events give instant feel)
+  }, 5 * 60 * 1000);
 }
 
-// Immediate check when user switches back to the app
+// Immediate check when user switches back — but throttle to once per 30s
+let _lastFocusCheck = 0;
+function focusCheck(){
+  const now = Date.now();
+  if(now - _lastFocusCheck < 30000) return; // 30s 冷卻
+  _lastFocusCheck = now;
+  checkGistForUpdates();
+}
 document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState === 'visible') checkGistForUpdates();
+  if(document.visibilityState === 'visible') focusCheck();
 });
-window.addEventListener('focus', ()=>{ checkGistForUpdates(); });
+window.addEventListener('focus', focusCheck);
 // When network reconnects, push local data and check for updates
 window.addEventListener('online', ()=>{
   if(getGistToken()){
@@ -3163,8 +3176,7 @@ document.addEventListener('keydown', e=>{
 currentAccount = localStorage.getItem('currentAccount') || 'A';
 const savedAt = loadData();
 autoLoadFromGist(); // Auto-load from cloud if new
-startGistPollTimer(); // Poll Gist every 3 miner
-startGistPollTimer(); // Poll for Gist updates every 3 min
+startGistPollTimer(); // Poll for Gist updates
 buildGroupCards();
 buildReturnCards();
 updateGroupSelect();
