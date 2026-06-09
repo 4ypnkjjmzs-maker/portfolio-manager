@@ -21,7 +21,8 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-seri
 .total-label{font-size:11px;color:var(--muted);}
 .total-value{font-family:'Space Mono',monospace;font-size:26px;font-weight:700;color:var(--gold2);letter-spacing:-1px;}
 
-.tabs{display:flex;border-bottom:1px solid var(--border);padding:0 20px;background:var(--bg);overflow-x:auto;-webkit-overflow-scrolling:touch;position:sticky;top:0;z-index:100;}
+.tabs{display:flex;border-bottom:1px solid var(--border);padding:0 20px;background:var(--bg);overflow-x:auto;-webkit-overflow-scrolling:touch;position:sticky;top:0;z-index:100;transition:transform .25s ease;will-change:transform;}
+.tabs.tabs-hidden{transform:translateY(-110%);}
 .tab{font-size:11px;letter-spacing:2px;color:var(--muted);padding:13px 0;margin-right:24px;cursor:pointer;border-bottom:2px solid transparent;transition:all .1s;font-family:'Space Mono',monospace;text-transform:uppercase;white-space:nowrap;flex-shrink:0;}
 .tab.active{color:var(--gold);border-bottom-color:var(--gold);}
 
@@ -3174,6 +3175,28 @@ updateCalc();
 updateAccountBar();
 startAutoRefresh();
 setTimeout(initSliderFills, 50);
+// ── Auto-hide tabs on scroll-down, show on scroll-up ────────────────────
+(()=>{
+  const tabs = document.querySelector('.tabs');
+  if(!tabs) return;
+  let lastY = window.scrollY, ticking = false;
+  window.addEventListener('scroll', ()=>{
+    if(ticking) return;
+    ticking = true;
+    requestAnimationFrame(()=>{
+      const y = window.scrollY;
+      const dy = y - lastY;
+      // 滑到頂部一定顯示
+      if(y < 60){ tabs.classList.remove('tabs-hidden'); }
+      // 往下滑超過 8px 且離頂部 > 80px → 隱藏
+      else if(dy > 8){ tabs.classList.add('tabs-hidden'); }
+      // 往上滑超過 8px → 顯示
+      else if(dy < -8){ tabs.classList.remove('tabs-hidden'); }
+      lastY = y;
+      ticking = false;
+    });
+  }, {passive:true});
+})();
 // ── 修正 fixed header 擋住內容：設定 paddingTop 並監聽高度變化 ──────────────
 adjustContentPadding();
 window.addEventListener('resize', adjustContentPadding);
