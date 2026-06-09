@@ -302,12 +302,13 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
       <span id="cloudIndicator" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);opacity:0.35;white-space:nowrap"></span>
       <span id="saveStatus" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--green);letter-spacing:1px;opacity:0.5;transition:opacity .4s"></span>
       <span id="refreshCountdown" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--gold2);letter-spacing:1px;opacity:0.7"></span>
+      <span id="rateDisplay" style="font-family:'Space Mono',monospace;font-size:9px;color:#5b9bd5;letter-spacing:1px;opacity:0.85;white-space:nowrap">USD/TWD —</span>
       <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">
         
         
         <button onclick="cloudSync()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:#9b7fd4;background:rgba(155,127,212,.12);border:1px solid rgba(155,127,212,.35);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">雲端</button>
         <button id="fetchAllBtn" onclick="fetchAllPrices()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0;color:var(--gold2);background:rgba(232,201,122,.12);border:1px solid rgba(232,201,122,.35);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">更新報價</button>
-        <button onclick="saveData();switchTab('rebalance')" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0;color:#5b9bd5;background:rgba(91,155,213,.12);border:1px solid rgba(91,155,213,.35);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">再平衡</button>
+        <button onclick="rebalanceAndSwitch()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0;color:#5b9bd5;background:rgba(91,155,213,.12);border:1px solid rgba(91,155,213,.35);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">再平衡</button>
         <button onclick="clearData()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">重置</button>
       </div>
       <input type="file" id="importInput" accept=".json" style="display:none" onchange="importJSON(event)">
@@ -345,6 +346,7 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
       <span id="totalCost"></span><span id="totalCurrentPnl"></span>
     </div>
   </div>
+  <div id="groupBalanceAlert" style="margin-top:8px"></div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;margin-bottom:2px">
   <div class="section-label" style="margin:0">群組配置</div>
   <button onclick="toggleAllGroups()" id="toggleAllBtn"
@@ -408,7 +410,7 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
     <input class="input-field" id="withdrawInput" type="number" inputmode="numeric"
       placeholder="0" value="0" oninput="updateCalc()" style="font-size:18px;width:100%;background:var(--surface2)">
   </div>
-  <button class="calc-btn" onclick="saveData();switchTab('rebalance')">計算再平衡 →</button>
+  <button class="calc-btn" onclick="rebalanceAndSwitch()">計算再平衡 →</button>
 
   <div class="section-label" style="margin-top:20px">配置圓餅圖</div>
   <div class="action-card">
@@ -600,17 +602,6 @@ function buildGroupCards(){
           <input type="range" class="grp-slider" id="gslider-${g.id}" min="0" max="100" step="1" value="${g.pct}"
             oninput="syncGroupSlider(${g.id}, this.value)">
         </div>
-        ${g.currency==='USD' ? `
-        <div class="rate-row" id="rateRow-${g.id}">
-          <span class="rate-flag">🇺🇸</span>
-          <span class="rate-label">USD / TWD</span>
-          <span class="rate-label" style="color:#5b9bd5">1 USD =</span>
-          <input class="rate-input" id="rateInput-${g.id}" type="number"
-            inputmode="decimal" step="0.1" value="${exchangeRate}"
-            oninput="updateExchangeRate(this.value)">
-          <span class="rate-label" style="color:#5b9bd5">TWD</span>
-          <button onclick="fetchRate()" style="margin-left:auto;font-family:'Space Mono',monospace;font-size:9px;color:#5b9bd5;background:rgba(91,155,213,.1);border:1px solid rgba(91,155,213,.3);border-radius:6px;padding:3px 8px;cursor:pointer;letter-spacing:1px;">更新</button>
-        </div>` : ''}
         <!-- Mini summary row — always visible -->
         <div id="gmini-${g.id}" style="margin-bottom:10px"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
@@ -1074,6 +1065,9 @@ function refreshHoldings(){
     renderQuickRebal(g.id, after);
   });
 
+  // ── 大類別再平衡提醒 ──────────────────────────────────────────────────────
+  renderGroupBalance();
+
 
 
   // ── Drift data collection ──────────────────────────────────────────────────
@@ -1100,6 +1094,7 @@ function refreshHoldings(){
     const cashAmt = assets.filter(a=>(a.leverage!=null?a.leverage:1)===0)
                           .reduce((s,a)=>s+a.current, 0);
     const totalCurExpH = assets.reduce((s,a)=>s+(a.current*(a.leverage!=null?a.leverage:1)),0);
+    const totalCurExpPct = total > 0 ? totalCurExpH/total*100 : 0;  // 整體帳戶現在曝險 %
     const totalTgtExpH = assets.reduce((s,a)=>{
       const lev = a.leverage!=null?a.leverage:1;
       return s + (afterExp * assetEffectivePct(a)/100) * lev;
@@ -1111,38 +1106,6 @@ function refreshHoldings(){
     const expBdr = totalTgtExpPct>120?'rgba(224,85,85,.35)':totalTgtExpPct>100?'rgba(201,168,76,.35)':'rgba(76,175,130,.25)';
 
     var driftHtml = '';
-    if(driftData.length > 0){
-      var byGroup = {};
-      driftData.forEach(function(d){
-        if(!byGroup[d.groupName]) byGroup[d.groupName] = [];
-        byGroup[d.groupName].push(d);
-      });
-      var rows = '';
-      Object.keys(byGroup).forEach(function(grpName){
-        var items = byGroup[grpName];
-        var grpClr = grpName.indexOf('美')>=0 ? '#5b9bd5' : 'var(--gold)';
-        var badges = '';
-        items.forEach(function(d){
-          var sign = d.drift>0?'+':'−';
-          var clr  = d.drift>0?'var(--red)':'#5b9bd5';
-          var bg   = d.drift>0?'rgba(224,85,85,.1)':'rgba(91,155,213,.1)';
-          var bdr  = d.drift>0?'rgba(224,85,85,.25)':'rgba(91,155,213,.25)';
-          badges += '<span style="display:inline-flex;align-items:center;gap:3px;background:'+bg+';border:1px solid '+bdr+';border-radius:6px;padding:3px 8px;margin:0 4px 3px 0;white-space:nowrap">'
-            +'<span style="font-size:10px;font-weight:700;color:'+clr+'">'+d.label+'</span>'
-            +'<span style="font-size:10px;color:'+clr+'">'+sign+Math.abs(d.drift).toFixed(1)+'%</span>'
-            +'</span>';
-        });
-        rows += '<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:3px">'
-          +'<span style="color:'+grpClr+';font-size:10px;font-weight:700;width:28px;flex-shrink:0;padding-top:5px">'+grpName+'</span>'
-          +'<div style="flex:1;display:flex;flex-wrap:wrap">'+badges+'</div>'
-          +'</div>';
-      });
-      driftHtml = '<div style="padding:10px 16px 12px;border-top:1px solid rgba(255,255,255,.06)">'
-        +'<div style="display:flex;align-items:center;gap:5px;margin-bottom:7px">'
-          +'<span style="font-size:11px;color:var(--red)">⚠</span>'
-          +'<span style="font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase">偏移 &gt;10%</span>'
-        +'</div>'+rows+'</div>';
-    }
 
     expSum.style.border = '1px solid '+expBdr;
     expSum.innerHTML =
@@ -1161,21 +1124,7 @@ function refreshHoldings(){
             +'<div style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:var(--green)">'+cashPct.toFixed(0)+'%</div>'
           +'</div>'
         +'</div>'
-        +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">'
-          +'<span style="font-size:11px;color:var(--muted);letter-spacing:2px">總曝險</span>'
-          +'<span style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:'+expClr+'">'+totalTgtExpPct.toFixed(1)+'%</span>'
-        +'</div>'
-        +'<div style="position:relative;height:4px;background:rgba(255,255,255,.07);border-radius:2px;margin-bottom:4px">'
-          +'<div style="position:absolute;left:50%;top:-5px;width:1px;height:14px;background:rgba(255,255,255,.18)"></div>'
-          +'<div style="width:'+Math.min(barW/2,100)+'%;height:100%;border-radius:2px;background:'+expClr+'"></div>'
-        +'</div>'
-        +'<div style="display:flex;justify-content:space-between">'
-          +'<span style="font-size:9px;color:rgba(255,255,255,.18)">0%</span>'
-          +'<span style="font-size:9px;color:rgba(255,255,255,.18)">100%</span>'
-          +'<span style="font-size:9px;color:rgba(255,255,255,.18)">200%</span>'
-        +'</div>'
-      +'</div>'
-      +driftHtml;
+      +'</div>';
   }
 
   refreshDonut();
@@ -2331,6 +2280,8 @@ function updateCalc(){
   refreshGroupMini();
   refreshRebalance();
   refreshReturns();
+  const _rd=document.getElementById('rateDisplay');
+  if(_rd) _rd.textContent='USD/TWD '+(exchangeRate||32).toFixed(2);
   saveData();
 }
 
@@ -2358,14 +2309,11 @@ function startAutoRefresh(){
 }
 
 // ── Exchange rate ──────────────────────────────────────────────────────────────
-function updateExchangeRate(){
-  const inp=document.getElementById('rateInput');
-  if(!inp) return;
-  const newRate=parseFloat(inp.value);
-  if(!newRate||newRate<=0){ inp.style.borderColor='var(--red)'; return; }
-  inp.style.borderColor='';
-  exchangeRate=newRate;
-  updateCalc();
+// 點再平衡時：先抓最新匯率再切頁
+async function rebalanceAndSwitch(){
+  saveData();
+  switchTab('rebalance');
+  try { await fetchRate(); updateCalc(); } catch(e){}
 }
 
 // ── Price display ──────────────────────────────────────────────────────────────
@@ -2424,14 +2372,20 @@ function refreshGroupMini(){
     const ga=assetsInGroup(g.id);
     const total=totalCurrent();
     const after=Math.max(0,total-withdraw());
-    const curExp=ga.reduce((s,a)=>s+a.current*(a.leverage!=null?a.leverage:1),0);
-    const curExpPct=total>0?(curExp/total*100).toFixed(1):0;
-    const tgtExp=ga.reduce((s,a)=>{
-      const effPct=assetEffectivePct(a);
-      const lev=a.leverage!=null?a.leverage:1;
+    // ── 整體帳號曝險（所有組別合計）─────────────────────────────────────────
+    const totCurExpAll = assets.reduce((s,a)=>s+a.current*(a.leverage!=null?a.leverage:1),0);
+    const acctExpPct   = total>0 ? totCurExpAll/total*100 : 0;
+    // 調整後：所有組別按目前 slider 設定再平衡後的整體曝險（兩卡一致）
+    const projTotalExp = assets.reduce((s,a)=>{
+      const effPct=assetEffectivePct(a); const lev=a.leverage!=null?a.leverage:1;
       return s+(after*effPct/100)*lev;
     },0);
-    const tgtExpPct=after>0?(tgtExp/after*100).toFixed(1):0;
+    const projExpPct   = after>0 ? projTotalExp/after*100 : acctExpPct;
+    const pClr = projExpPct>120?'var(--red)':projExpPct>105?'var(--gold)':'var(--green)';
+    const eBg  = projExpPct>120?'rgba(224,85,85,.07)':projExpPct>105?'rgba(201,168,76,.07)':'rgba(76,175,130,.05)';
+    const eBdr = projExpPct>120?'rgba(224,85,85,.28)':projExpPct>105?'rgba(201,168,76,.28)':'rgba(76,175,130,.22)';
+    const curFill  = Math.min(acctExpPct/200*100, 100).toFixed(2);
+    const projFill = Math.min(projExpPct/200*100, 100).toFixed(2);
     const innerSum = ga.reduce((s,x)=>s+x.innerPct,0)||1;
     // Legend columns: glowing dot + ticker + pct
     const cols=ga.map((a,i)=>{
@@ -2456,12 +2410,31 @@ function refreshGroupMini(){
     const bar = '<div style="display:flex;width:100%;height:14px;margin-bottom:16px">'+segs+'</div>';
     el.innerHTML='<div style="display:flex;gap:4px;justify-content:center;margin-bottom:12px">'+cols+'</div>'
       +bar
-      +'<div style="display:flex;align-items:center;justify-content:center;gap:14px;text-align:center;background:rgba(76,175,130,.06);border:1px solid rgba(76,175,130,.18);border-radius:10px;padding:10px 16px">'
-        +'<div><div style="font-size:9px;color:var(--muted);margin-bottom:3px;letter-spacing:1px">現在曝險</div>'
-          +'<div style="font-family:\'Space Mono\',monospace;font-size:19px;font-weight:700;color:var(--text2)">'+curExpPct+'%</div></div>'
-        +'<div style="color:var(--green);font-size:16px;font-weight:700">→</div>'
-        +'<div><div style="font-size:9px;color:var(--muted);margin-bottom:3px;letter-spacing:1px">再平衡後</div>'
-          +'<div style="font-family:\'Space Mono\',monospace;font-size:19px;font-weight:700;color:var(--green);text-shadow:0 0 10px rgba(76,175,130,.5)">'+tgtExpPct+'%</div></div>'
+      +'<div style="margin-top:14px;padding:12px 14px 10px;background:'+eBg+';border-radius:12px;border:1px solid '+eBdr+'">'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px">'
+          +'<span style="font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase">整體曝險</span>'
+          +'<div style="display:flex;align-items:flex-end;gap:10px">'
+            +'<div style="text-align:center">'
+              +'<div style="font-size:8px;color:var(--muted);margin-bottom:2px">現在</div>'
+              +'<div style="font-family:\'Space Mono\',monospace;font-size:14px;font-weight:600;color:var(--text2);opacity:.65">'+acctExpPct.toFixed(1)+'%</div>'
+            +'</div>'
+            +'<div style="font-size:13px;color:'+pClr+';opacity:.8;padding-bottom:2px">→</div>'
+            +'<div style="text-align:center">'
+              +'<div style="font-size:8px;color:var(--muted);margin-bottom:2px">調整後</div>'
+              +'<div style="font-family:\'Space Mono\',monospace;font-size:22px;font-weight:700;color:'+pClr+';line-height:1">'+projExpPct.toFixed(1)+'<span style="font-size:11px;font-weight:400;opacity:.5">%</span></div>'
+            +'</div>'
+          +'</div>'
+        +'</div>'
+        +'<div style="position:relative;height:5px;background:rgba(255,255,255,.06);border-radius:3px;margin-bottom:5px">'
+          +'<div style="position:absolute;left:50%;top:-3px;width:1px;height:11px;background:rgba(255,255,255,.22)"></div>'
+          +'<div style="position:absolute;left:0;top:0;height:100%;border-radius:3px;width:'+projFill+'%;background:'+pClr+';box-shadow:0 0 6px '+pClr+'55"></div>'
+          +'<div style="position:absolute;left:'+curFill+'%;top:-2px;width:2px;height:9px;background:rgba(255,255,255,.4);border-radius:1px;transform:translateX(-50%)"></div>'
+        +'</div>'
+        +'<div style="display:flex;justify-content:space-between">'
+          +'<span style="font-size:8px;color:rgba(255,255,255,.15)">0%</span>'
+          +'<span style="font-size:8px;color:rgba(255,255,255,.28)">100%</span>'
+          +'<span style="font-size:8px;color:rgba(255,255,255,.15)">200%</span>'
+        +'</div>'
       +'</div>';
   });
 }
@@ -2549,6 +2522,83 @@ function clearData(){
 
 
 // ── Quick Rebalance hint (per-group) ─────────────────────────────────────────
+// ── Group balance alert (第一層大區塊再平衡) ──────────────────────────────────
+function renderGroupBalance(){
+  const el = document.getElementById('groupBalanceAlert');
+  if(!el) return;
+  if(!groups.length){ el.innerHTML=''; return; }
+  const total = totalCurrent();
+  const w = Math.min(withdraw(), total);
+  const after = Math.max(0, total - w);
+  if(total <= 0){ el.innerHTML=''; return; }
+
+  const fmtShort = v => {
+    const n = Math.abs(Math.round(v));
+    if(n >= 1e8) return (n/1e8).toFixed(1)+'億';
+    if(n >= 1e4) return Math.round(n/1e4)+'萬';
+    return n.toLocaleString('zh-TW');
+  };
+
+  // 計算每組數據
+  const rows = groups.map(g => {
+    const gCur    = assetsInGroup(g.id).reduce((s,a)=>s+a.current,0);
+    const gCurPct = total>0 ? gCur/total*100 : 0;
+    const gTgtAmt = after>0 ? after*g.pct/100 : 0;
+    const gDiff   = gTgtAmt - gCur;
+    const devPct  = gCurPct - g.pct;
+    const absDev  = Math.abs(devPct);
+    return {g, gCur, gCurPct, gDiff, devPct, absDev};
+  });
+
+  // 整張卡的緊急度取兩組最大偏移
+  const maxAbsDev = Math.max(...rows.map(r=>r.absDev));
+  const cardClr = maxAbsDev>10?'var(--red)':maxAbsDev>3?'var(--gold)':'var(--green)';
+  const cardBg  = maxAbsDev>10?'rgba(224,85,85,.05)':maxAbsDev>3?'rgba(201,168,76,.05)':'rgba(76,175,130,.04)';
+  const cardBdr = maxAbsDev>10?'rgba(224,85,85,.28)':maxAbsDev>3?'rgba(201,168,76,.28)':'rgba(76,175,130,.22)';
+
+  let rowsHtml = '';
+  rows.forEach((r,i) => {
+    const gColor   = groupColor(r.g.id);
+    const rowClr   = r.absDev>10?'var(--red)':r.absDev>3?'var(--gold)':'var(--green)';
+    const actColor = r.gDiff>0?'var(--green)':'var(--red)';
+    const devSign  = r.devPct>0?'+':'';
+    const divider  = i < rows.length-1 ? 'border-bottom:1px solid var(--border);' : '';
+
+    const actionInline = r.absDev<3
+      ? `<span style="font-size:12px;font-weight:600;color:var(--green)">✓ 均衡</span>`
+      : `<span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:${actColor}">${r.gDiff>0?'↑ 買入':'↓ 賣出'} NT$${fmtShort(Math.abs(r.gDiff))}</span>`;
+
+    rowsHtml += `<div style="padding:14px 0;${divider}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font-size:18px;font-weight:700;color:${gColor};letter-spacing:1px">${r.g.name}</span>
+          <span style="font-size:10px;color:var(--muted)">目標 ${r.g.pct}%</span>
+        </div>
+        <div style="font-family:'Space Mono',monospace;font-size:24px;font-weight:700;color:${rowClr};line-height:1">${r.gCurPct.toFixed(1)}<span style="font-size:12px;font-weight:400;color:var(--muted)">%</span></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--muted)">NT$${fmtShort(r.gCur)}</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          ${actionInline}
+          <span style="font-size:10px;color:${rowClr};font-family:'Space Mono',monospace">${devSign}${r.devPct.toFixed(1)}%</span>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = `<div style="background:${cardBg};border:1px solid ${cardBdr};border-radius:14px;padding:6px 16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0 6px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px">⚖</span>
+        <span style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--gold2);text-transform:uppercase">大類別再平衡</span>
+      </div>
+      <span style="font-size:10px;color:${cardClr};font-family:'Space Mono',monospace">最大偏移 ${maxAbsDev.toFixed(1)}%</span>
+    </div>
+    ${rowsHtml}
+  </div>`;
+}
+
+
 function renderQuickRebal(gid, after){
   const el = document.getElementById('quickRebal-'+gid);
   if(!el) return;
@@ -2557,26 +2607,41 @@ function renderQuickRebal(gid, after){
   const ga = assetsInGroup(gid);
   if(!ga.length){ el.style.display='none'; return; }
 
-  // Calculate per-asset deviation
   const innerSum = ga.reduce((s,a)=>s+a.innerPct,0)||1;
   const gCurTotal = ga.reduce((s,a)=>s+a.current,0);
-  const gTgt = after * g.pct/100;
+
+  // ── 第二層：以群組目前總額為分母，與第一層 40/60 脫鉤 ────────────────────
+  // 每個資產的偏移 = |目標 − 現值| ÷ 目標 × 100%（相對自己的目標）
   const deviations = ga.map(a=>{
-    const tgtAmt = Math.round(gTgt * (a.innerPct/innerSum));
+    const tgtAmt = Math.round(gCurTotal * (a.innerPct/innerSum));
     const diff = tgtAmt - a.current;
-    return {a, tgtAmt, diff};
+    const devPct = tgtAmt>0 ? Math.abs(diff)/tgtAmt*100 : 0;
+    return {a, tgtAmt, diff, devPct};
   });
 
-  const maxDiff = Math.max(...deviations.map(d=>Math.abs(d.diff)));
-  const maxDiffPct = gCurTotal>0 ? maxDiff/gCurTotal*100 : 0;
+  const maxDiffPct = Math.max(...deviations.map(d=>d.devPct));
 
-  if(maxDiffPct < 3){ el.style.display='none'; return; }
+  // 安全區：偏移 < 20% → 顯示綠色安全區卡
+  if(maxDiffPct < 20){
+    el.style.display='block';
+    el.innerHTML=`<div style="background:rgba(76,175,130,.08);border:1px solid rgba(76,175,130,.25);border-radius:10px;padding:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--green);text-transform:uppercase">⚡ 快速再平衡</div>
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green)">最大偏移 ${maxDiffPct.toFixed(1)}%</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;padding:2px 0">
+      <div style="width:3px;align-self:stretch;min-height:16px;background:var(--green);border-radius:2px"></div>
+      <span style="font-size:12px;font-weight:600;color:var(--green)">安全區・不動</span>
+    </div>
+  </div>`;
+    return;
+  }
 
   const pctDev = maxDiffPct.toFixed(1);
-  const urgency = maxDiffPct>10?'var(--red)':maxDiffPct>5?'var(--gold)':'#5b9bd5';
-  const urgBg   = maxDiffPct>10?'rgba(224,85,85,.08)':maxDiffPct>5?'rgba(201,168,76,.08)':'rgba(91,155,213,.08)';
-  const urgBdr  = maxDiffPct>10?'rgba(224,85,85,.3)':maxDiffPct>5?'rgba(201,168,76,.3)':'rgba(91,155,213,.3)';
-  const advice  = maxDiffPct>10?'偏移較大，建議盡快再平衡':maxDiffPct>5?'中度偏移，可擇機調整':'偏移輕微，暫可不調整';
+  const urgency = maxDiffPct>30?'var(--red)':'var(--gold)';
+  const urgBg   = maxDiffPct>30?'rgba(224,85,85,.08)':'rgba(201,168,76,.08)';
+  const urgBdr  = maxDiffPct>30?'rgba(224,85,85,.3)':'rgba(201,168,76,.3)';
+  const advice  = maxDiffPct>30?'偏移較大，建議盡快再平衡':'偏移已達門檻，可擇機調整';
 
   const sells = deviations.filter(d=>d.diff<0).sort((a,b)=>a.diff-b.diff);
   const buys  = deviations.filter(d=>d.diff>0).sort((a,b)=>b.diff-a.diff);
@@ -2640,9 +2705,8 @@ async function fetchRate(){
     exchangeRate = Math.round(found * 100) / 100; // round to 2 decimal places
     localStorage.setItem('exchangeRate', String(exchangeRate));
     // Update all rate inputs on screen
-    document.querySelectorAll('[id^="rateInput-"]').forEach(inp=>{
-      if(inp !== document.activeElement) inp.value = exchangeRate;
-    });
+    const disp = document.getElementById('rateDisplay');
+    if(disp) disp.textContent = 'USD/TWD ' + exchangeRate.toFixed(2);
   }
   return found;
 }
@@ -3098,10 +3162,20 @@ startGistPollTimer(); // Poll for Gist updates every 3 min
 buildGroupCards();
 buildReturnCards();
 updateGroupSelect();
+// 初始化匯率顯示
+const _rDisp = document.getElementById('rateDisplay');
+if(_rDisp) _rDisp.textContent = 'USD/TWD ' + exchangeRate.toFixed(2);
 updateCalc();
 updateAccountBar();
 startAutoRefresh();
 setTimeout(initSliderFills, 50);
+// ── 修正 fixed header 擋住內容：設定 paddingTop 並監聽高度變化 ──────────────
+adjustContentPadding();
+window.addEventListener('resize', adjustContentPadding);
+const _fixedEl = document.querySelector('.fixed-top');
+if(_fixedEl && typeof ResizeObserver !== 'undefined'){
+  new ResizeObserver(adjustContentPadding).observe(_fixedEl);
+}
 if(savedAt){
   const d=new Date(savedAt);
   const ts=d.toLocaleDateString('zh-TW')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
