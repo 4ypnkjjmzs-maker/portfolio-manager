@@ -14,15 +14,14 @@
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif;min-height:100vh;overflow-x:hidden;}
 
-/* fixed-top 在所有裝置都生效（手機亦同），避免 iOS sticky 跳動問題 */
-.fixed-top{position:fixed;top:0;left:0;right:0;z-index:200;background:var(--bg);box-sizing:border-box;}
+/* header 與 acct-bar 隨頁面捲動；只有 .tabs 固定在頂端 */
 .header{padding:24px 20px 14px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#131313,var(--bg));box-sizing:border-box;}
 .header-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;}
 .app-title{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:4px;color:var(--text2);text-transform:uppercase;}
 .total-label{font-size:11px;color:var(--muted);}
 .total-value{font-family:'Space Mono',monospace;font-size:26px;font-weight:700;color:var(--gold2);letter-spacing:-1px;}
 
-.tabs{display:flex;border-bottom:1px solid var(--border);padding:0 20px;background:var(--bg);overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.tabs{display:flex;border-bottom:1px solid var(--border);padding:0 20px;background:var(--bg);overflow-x:auto;-webkit-overflow-scrolling:touch;position:sticky;top:0;z-index:100;}
 .tab{font-size:11px;letter-spacing:2px;color:var(--muted);padding:13px 0;margin-right:24px;cursor:pointer;border-bottom:2px solid transparent;transition:all .1s;font-family:'Space Mono',monospace;text-transform:uppercase;white-space:nowrap;flex-shrink:0;}
 .tab.active{color:var(--gold);border-bottom-color:var(--gold);}
 
@@ -293,7 +292,7 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
 <body>
 <div class="app-shell">
 
-<div class="fixed-top"><div class="header">
+<div class="header">
   <div class="header-top">
     <span class="app-title">Portfolio</span>
     
@@ -330,7 +329,7 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
   <div class="tab" onclick="switchTab('rebalance')">再平衡</div>
   <div class="tab" onclick="switchTab('returns')">報酬試算</div>
   <div class="tab" onclick="switchTab('risk')">壓力測試</div>
-</div></div><!-- end fixed-top -->
+</div>
 
 <div class="content">
 
@@ -2273,9 +2272,11 @@ document.addEventListener('input',e=>{
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 function adjustContentPadding(){
-  const fixed=document.querySelector('.fixed-top');
+  // 清除舊版本可能殘留的 paddingTop（兼容性）
+  const content=document.querySelector('.content');
   const shell=document.querySelector('.app-shell');
-  if(fixed&&shell) shell.style.paddingTop=fixed.offsetHeight+'px';
+  if(content) content.style.paddingTop='';
+  if(shell) shell.style.paddingTop='';
 }
 
 // ── updateCalc ────────────────────────────────────────────────────────────────
