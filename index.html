@@ -2449,27 +2449,47 @@ function refreshGroupMini(){
 async function fetchOneAsset(id){
   const btn=document.getElementById('pricebtn-'+id);
   if(btn){ btn.textContent='⏳'; btn.disabled=true; }
-  const idx=assetIndex(id); if(idx<0){ if(btn){btn.textContent='↻';btn.disabled=false;} return; }
+  const idx=assetIndex(id);
+  if(idx<0){ if(btn){btn.textContent='↻';btn.disabled=false;} return; }
   const a=assets[idx];
   const sym=getYahooTicker(a.ticker);
-  const endpoints=['https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
-                   'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d'];
+  if(!sym){
+    if(btn){btn.textContent='⚠';btn.disabled=false; setTimeout(()=>{btn.textContent='↻';},2000);}
+    console.warn('fetchOneAsset: no ticker for', a.ticker);
+    return;
+  }
+  const endpoints=[
+    'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
+    'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d'
+  ];
   const proxies=['', 'https://corsproxy.io/?url=', 'https://api.allorigins.win/raw?url=', 'https://api.allorigins.win/get?url='];
   let found=null;
   outer: for(const ep of endpoints){
     for(const px of proxies){
       try{
-        const bust='&_t='+Date.now(); const ep2=ep+(ep.includes('?')?bust:bust.replace('&','?')); const url=px?px+encodeURIComponent(ep2):ep2;
-        const res=await fetch(url,{signal:AbortSignal.timeout(6000),cache:'no-store'});
+        const bust='&_t='+Date.now();
+        const ep2=ep+bust;
+        const url=px?px+encodeURIComponent(ep2):ep2;
+        const res=await fetch(url,{signal:AbortSignal.timeout(8000),cache:'no-store'});
+        if(!res.ok) continue;
         const raw=await res.json();
         const body=raw.contents?JSON.parse(raw.contents):raw;
         const p=body?.chart?.result?.[0]?.meta?.regularMarketPrice;
-        if(p){found=p;break outer;}
-      }catch(e){}
+        if(p && p>0){ found=p; break outer; }
+      }catch(e){ console.debug('fetchOneAsset try fail', a.ticker, e?.message); }
     }
   }
   if(btn){btn.textContent='↻';btn.disabled=false;}
-  if(found) applyPrice(id,found);
+  if(found){
+    applyPrice(id,found);
+  } else {
+    if(btn){
+      btn.textContent='⚠';
+      btn.style.color='var(--red)';
+      setTimeout(()=>{btn.textContent='↻';btn.style.color='';},2500);
+    }
+    console.warn('fetchOneAsset failed for', a.ticker, 'sym=', sym);
+  }
 }
 
 // ── customConfirm ──────────────────────────────────────────────────────────────
