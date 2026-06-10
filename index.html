@@ -2497,18 +2497,20 @@ function clearData(){
 // ── Group balance alert (第一層大區塊再平衡) ──────────────────────────────────
 function buildDriftMonitor(total){
   if(!groups.length || total<=0) return '';
+  // 絕對偏離徽章：帶正負號，顏色看絕對值（≥10pp 紅、5–10pp 金、<5pp 藍）
   const badge = dev=>{
-    const c = dev>=30?'var(--red)':dev>=15?'var(--gold)':'var(--blue)';
-    const b = dev>=30?'rgba(224,85,85,.12)':dev>=15?'rgba(201,168,76,.12)':'rgba(91,141,239,.12)';
-    return '<span style="font-family:monospace;font-size:10px;font-weight:700;color:'+c+';background:'+b+';border:1px solid '+c+';border-radius:6px;padding:2px 7px;white-space:nowrap;min-width:48px;text-align:center;display:inline-block">'+dev.toFixed(1)+'%</span>';
+    const ad = Math.abs(dev);
+    const c = ad>=10?'var(--red)':ad>=5?'var(--gold)':'var(--blue)';
+    const b = ad>=10?'rgba(224,85,85,.12)':ad>=5?'rgba(201,168,76,.12)':'rgba(91,141,239,.12)';
+    return '<span style="font-family:monospace;font-size:10px;font-weight:700;color:'+c+';background:'+b+';border:1px solid '+c+';border-radius:6px;padding:2px 7px;white-space:nowrap;min-width:58px;text-align:center;display:inline-block">'+(dev>=0?'+':'')+dev.toFixed(1)+'%</span>';
   };
   let h = '<div style="border-top:1px solid var(--border);padding-top:10px">'
-    +'<div style="font-size:9px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-bottom:6px">偏移監測（相對偏離）</div>';
+    +'<div style="font-size:9px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-bottom:6px">偏移監測（絕對偏離）</div>';
   groups.forEach(g=>{
     const ga = assetsInGroup(g.id);
     const gCur = ga.reduce((s,a)=>s+a.current,0);
     const gCurPct = total>0 ? gCur/total*100 : 0;
-    const l1 = g.pct>0 ? Math.abs(gCurPct-g.pct)/g.pct*100 : 0;
+    const l1 = gCurPct - g.pct;
     h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0 4px">'
       +'<span style="font-size:13px;font-weight:700;color:'+groupColor(g.id)+'">'+g.name+'</span>'
       +'<div style="display:flex;align-items:center;gap:8px">'
@@ -2520,7 +2522,7 @@ function buildDriftMonitor(total){
     ga.forEach(a=>{
       const tgtInner = a.innerPct/innerSum*100;
       const actInner = gCur>0 ? a.current/gCur*100 : 0;
-      const l2 = tgtInner>0 ? Math.abs(actInner-tgtInner)/tgtInner*100 : 0;
+      const l2 = actInner - tgtInner;
       h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0 3px 14px">'
         +'<span style="font-size:11px;color:var(--text2)">'+a.ticker+'</span>'
         +'<div style="display:flex;align-items:center;gap:8px">'
@@ -2622,56 +2624,58 @@ function renderQuickRebal(gid, after){
   const gCurTotal = ga.reduce((s,a)=>s+a.current,0);
 
   // ── 第二層：純群組內互調，以群組目前實際總額為分母（與第一層完全脫鉤）──
-  // 相對偏離 = |目標 − 現值| ÷ 目標 × 100%
+  // 絕對偏離 = |實際內部% − 目標內部%|（單位：pp 百分點）
   const deviations = ga.map(a=>{
     const tgtAmt = Math.round(gCurTotal * (a.innerPct/innerSum));
     const diff = tgtAmt - a.current;
-    const devPct = tgtAmt>0 ? Math.abs(diff)/tgtAmt*100 : 0;
+    const tgtPct = a.innerPct/innerSum*100;
+    const actPct = gCurTotal>0 ? a.current/gCurTotal*100 : 0;
+    const devPct = Math.abs(actPct - tgtPct);
     return {a, tgtAmt, diff, devPct};
   });
   const maxDiffPct = gCurTotal>0 ? Math.max(...deviations.map(d=>d.devPct)) : 0;
 
-  // ── 第一層相對偏離（此群組實際% vs 目標%）──
+  // ── 第一層絕對偏離（此群組實際% vs 目標%，單位 pp）──
   const total = totalCurrent();
   const gCurPct = total>0 ? gCurTotal/total*100 : 0;
-  const l1Dev = g.pct>0 ? Math.abs(gCurPct-g.pct)/g.pct*100 : 0;
+  const l1Dev = Math.abs(gCurPct - g.pct);
 
-  // ── 顏色門檻：≥30% 紅、15–30% 金、<15% 藍（永遠顯示）──
-  const tier = maxDiffPct>=30?'red':maxDiffPct>=15?'gold':'blue';
+  // ── 顏色門檻：≥10pp 紅、5–10pp 金、<5pp 藍（永遠顯示）──
+  const tier = maxDiffPct>=10?'red':maxDiffPct>=5?'gold':'blue';
   const clr = tier==='red'?'var(--red)':tier==='gold'?'var(--gold)':'var(--blue)';
   const bg  = tier==='red'?'rgba(224,85,85,.08)':tier==='gold'?'rgba(201,168,76,.08)':'rgba(91,141,239,.07)';
   const bdr = tier==='red'?'rgba(224,85,85,.3)':tier==='gold'?'rgba(201,168,76,.3)':'rgba(91,141,239,.28)';
   const advice = tier==='red'?'偏移較大，建議盡快再平衡':tier==='gold'?'偏移已達門檻，可擇機調整':'群組內均衡・不需動作';
 
-  // ── 🚨 任一層相對偏離達 30% 警示 ──
+  // ── 🚨 任一層絕對偏離達 10pp 警示 ──
   let alertHtml='';
-  if(l1Dev>=30 || maxDiffPct>=30){
+  if(l1Dev>=10 || maxDiffPct>=10){
     const which=[];
-    if(l1Dev>=30) which.push('第一層 '+l1Dev.toFixed(1)+'%');
-    if(maxDiffPct>=30) which.push('第二層 '+maxDiffPct.toFixed(1)+'%');
+    if(l1Dev>=10) which.push('第一層 '+l1Dev.toFixed(1)+'%');
+    if(maxDiffPct>=10) which.push('第二層 '+maxDiffPct.toFixed(1)+'%');
     alertHtml = `<div style="background:rgba(224,85,85,.15);border:1px solid rgba(224,85,85,.45);border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
       <span style="font-size:14px">🚨</span>
-      <span style="font-size:11px;font-weight:700;color:var(--red);line-height:1.4">相對偏離達 30%（${which.join('・')}），建議立即再平衡</span>
+      <span style="font-size:11px;font-weight:700;color:var(--red);line-height:1.4">偏移達 10%（${which.join('・')}），建議立即再平衡</span>
     </div>`;
   }
 
   // ── 買賣建議：純群組內互調（賣多少剛好買多少），≥15% 才列出 ──
   let suggestHtml='';
-  if(maxDiffPct>=15){
+  if(maxDiffPct>=5){
     const sells = deviations.filter(d=>d.diff<0).sort((a,b)=>a.diff-b.diff);
     const buys  = deviations.filter(d=>d.diff>0).sort((a,b)=>b.diff-a.diff);
     let sellHtml='', buyHtml='';
-    sells.forEach(({a,tgtAmt,diff})=>{
+    sells.forEach(({a,tgtAmt,diff,devPct})=>{
       const cur=g.currency==='USD'?'$'+Math.round(Math.abs(diff)/(exchangeRate||32)).toLocaleString('en-US')+' USD':'$'+Math.round(Math.abs(diff)).toLocaleString('zh-TW');
       sellHtml+=`<div style="background:rgba(224,85,85,.1);border:1px solid rgba(224,85,85,.25);border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
-        <div><span style="color:var(--red);font-weight:700">↓ ${a.ticker}</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(a.innerPct/innerSum*100)}% → $${fmt(tgtAmt)}</div></div>
+        <div><span style="color:var(--red);font-weight:700">↓ ${a.ticker}</span><span style="font-family:monospace;font-size:10px;font-weight:700;color:var(--red);margin-left:6px">+${devPct.toFixed(1)}%</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(a.innerPct/innerSum*100)}% → $${fmt(tgtAmt)}</div></div>
         <div style="text-align:right"><div style="font-family:monospace;font-size:13px;font-weight:700;color:var(--red)">-${cur}</div><div style="font-size:10px;color:var(--muted)">現 $${fmt(a.current)}</div></div>
       </div>`;
     });
-    buys.forEach(({a,tgtAmt,diff})=>{
+    buys.forEach(({a,tgtAmt,diff,devPct})=>{
       const cur=g.currency==='USD'?'$'+Math.round(diff/(exchangeRate||32)).toLocaleString('en-US')+' USD':'$'+fmt(diff);
       buyHtml+=`<div style="background:rgba(76,175,130,.08);border:1px solid rgba(76,175,130,.25);border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
-        <div><span style="color:var(--green);font-weight:700">↑ ${a.ticker}</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(a.innerPct/innerSum*100)}% → $${fmt(tgtAmt)}</div></div>
+        <div><span style="color:var(--green);font-weight:700">↑ ${a.ticker}</span><span style="font-family:monospace;font-size:10px;font-weight:700;color:var(--green);margin-left:6px">−${devPct.toFixed(1)}%</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(a.innerPct/innerSum*100)}% → $${fmt(tgtAmt)}</div></div>
         <div style="text-align:right"><div style="font-family:monospace;font-size:13px;font-weight:700;color:var(--green)">+${cur}</div><div style="font-size:10px;color:var(--muted)">現 $${fmt(a.current)}</div></div>
       </div>`;
     });
