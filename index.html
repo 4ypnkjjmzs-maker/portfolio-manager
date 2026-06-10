@@ -2987,6 +2987,9 @@ let _applyingRemote = false;     // 套用雲端資料中：不回傳上雲
 let _lastSyncFingerprint = '';   // 上次排程上雲的內容指紋
 
 // Called after every saveData — debounced 5 seconds
+function syncFingerprint(gs, as_, rate, wd){
+  return JSON.stringify({g:gs, a:as_, r:rate, w:String(wd||'')});
+}
 function currentFingerprint(){
   return JSON.stringify({groups, assets, uid, gid, exchangeRate,
     withdraw: document.getElementById('withdrawInput').value});
@@ -3152,8 +3155,9 @@ async function checkGistForUpdates(){
   if(!token || !gistId) return;
   // Skip if rate-limited (back off)
   if(Date.now() < _rateLimitedUntil) return;
-  // Skip if user is actively editing (an input is focused)
-  if(document.activeElement && document.activeElement.tagName === 'INPUT') return;
+  if(_applyingRemote) return;
+  // 本機有排程中的上傳 → 先讓本機上傳完，不套用遠端
+  if(_gistSyncTimer) return;
   try {
     const hdrs = { Authorization:'Bearer '+token };
     if(_gistEtag) hdrs['If-None-Match'] = _gistEtag;
@@ -3170,9 +3174,13 @@ async function checkGistForUpdates(){
     const content = data.files[GIST_FILENAME]?.content;
     if(!content) return;
     const s = JSON.parse(content);
-    const localSavedAt = Number(localStorage.getItem('gh_gist_savedAt'))||0;
     const gistSavedAt = s.savedAt||0;
-    if(gistSavedAt <= localSavedAt) return; // Already up to date
+    // 內容比對（不靠裝置時鐘）：雲端內容與本機相同 → 不用動
+    const remoteFp = syncFingerprint(s.groups||[], s.assets||[], Number(s.exchangeRate)||32, s.withdraw);
+    const localFp  = syncFingerprint(groups, assets, exchangeRate, document.getElementById('withdrawInput').value);
+    if(remoteFp === localFp){ localStorage.setItem('gh_gist_savedAt', String(gistSavedAt)); return; }
+    // 本機有尚未上傳的變更 → 本機優先，等上傳覆蓋雲端
+    if(currentFingerprint() !== _lastSyncFingerprint && _lastSyncFingerprint !== '') return;
     // Gist is newer — silently update（旗標防止回傳上雲造成乒乓迴圈）
     _applyingRemote = true;
     try{
