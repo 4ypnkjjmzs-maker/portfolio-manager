@@ -302,7 +302,7 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
 
 <div class="header">
   <div class="header-top">
-    <span class="app-title">Portfolio <span style="opacity:.45;letter-spacing:1px">v2026.06.10d</span></span>
+    <span class="app-title">Portfolio <span style="opacity:.45;letter-spacing:1px">v2026.06.10e</span></span>
     
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -2759,7 +2759,8 @@ async function findPortfolioGist(token){
   try {
     const res = await fetch('https://api.github.com/gists?per_page=100', {
       headers: { Authorization:'Bearer '+token },
-      cache:'no-store'
+      cache:'no-store',
+      signal: AbortSignal.timeout(10000)
     });
     if(res.status === 401){ _lastGistError = 'Token 無效（401）— 請重新輸入'; return null; }
     if(res.status === 403){ _lastGistError = 'API 速率限制（403）— 請稍後再試'; return null; }
@@ -2917,7 +2918,8 @@ async function loadFromGist(){
   showCloudStatus('⬇ 讀取中…', 'var(--text2)');
   try {
     const res = await fetch('https://api.github.com/gists/'+gistId, {
-      headers: { Authorization:'Bearer '+token }
+      headers: { Authorization:'Bearer '+token },
+      signal: AbortSignal.timeout(10000)
     });
     if(!res.ok) throw new Error('HTTP '+res.status);
     const data = await res.json();
