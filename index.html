@@ -2957,9 +2957,8 @@ function saveData(){
     const fp = JSON.stringify({groups, assets, uid, gid, exchangeRate,
       withdraw: document.getElementById('withdrawInput').value});
     if(_applyingRemote){ _lastSyncFingerprint = fp; return; } // 套用雲端中：只存本機，斬斷回音迴圈
-    if(fp === _lastSyncFingerprint) return;                    // 沒變化：跳過雲端同步
-    _lastSyncFingerprint = fp;
-    scheduleGistSync(); // Auto cloud sync
+    if(fp === _lastSyncFingerprint) return;                    // 與上次「成功上傳」相同：跳過
+    scheduleGistSync(); // Auto cloud sync（指紋等上傳成功後才更新）
   } catch(e){
     const el = document.getElementById('saveStatus');
     if(el){
@@ -2988,17 +2987,30 @@ let _applyingRemote = false;     // 套用雲端資料中：不回傳上雲
 let _lastSyncFingerprint = '';   // 上次排程上雲的內容指紋
 
 // Called after every saveData — debounced 5 seconds
+function currentFingerprint(){
+  return JSON.stringify({groups, assets, uid, gid, exchangeRate,
+    withdraw: document.getElementById('withdrawInput').value});
+}
 function scheduleGistSync(){
   if(!getGistToken()) return; // No token → skip
   clearTimeout(_gistSyncTimer);
-  _gistSyncTimer = setTimeout(autoSyncToGist, 8000);
+  _gistSyncTimer = setTimeout(()=>{ _gistSyncTimer = null; autoSyncToGist(); }, 3000);
   showCloudIndicator('pending');
+}
+// 切走 App / 關頁前：若有未上傳的變更，立即用 keepalive 送出（iOS 凍結 JS 前搶送）
+function flushGistSync(){
+  if(!getGistToken()) return;
+  if(currentFingerprint() === _lastSyncFingerprint && !_gistSyncTimer) return; // 沒有待同步
+  clearTimeout(_gistSyncTimer); _gistSyncTimer = null;
+  autoSyncToGist(true);
 }
 
 // Silent auto-save to Gist
-async function autoSyncToGist(){
+async function autoSyncToGist(useKeepalive){
   const token = getGistToken();
   if(!token) return;
+  const fp = currentFingerprint();
+  if(fp === _lastSyncFingerprint){ showCloudIndicator('ok'); return; } // 內容已同步，不重複上傳
   showCloudIndicator('syncing');
   const state = {
     version:2, savedAt: Date.now(),
@@ -3023,6 +3035,7 @@ async function autoSyncToGist(){
         method: gistId ? 'PATCH' : 'POST',
         headers: { Authorization:'Bearer '+token, 'Content-Type':'application/json' },
         body: JSON.stringify(body),
+        keepalive: !!useKeepalive,
         signal: AbortSignal.timeout(10000)
       });
       // If rate limited (403 / 429), back off 30 min and stop
@@ -3047,6 +3060,7 @@ async function autoSyncToGist(){
       const data = await res.json();
       localStorage.setItem('gh_gist_id', data.id);
       localStorage.setItem('gh_gist_savedAt', String(state.savedAt));
+      _lastSyncFingerprint = fp; // 上傳成功才標記為已同步
       showCloudIndicator('ok');
       return; // Success — stop retrying
     } catch(e){
@@ -3129,6 +3143,7 @@ function showCloudIndicator(state){
 
 // ── Near-instant Gist sync (poll every 10s when visible + on focus) ─────────
 let _gistPollTimer = null;
+let _gistEtag = null; // ETag 條件請求：304 回應不計入 GitHub API 額度
 
 let _rateLimitedUntil = 0;
 async function checkGistForUpdates(){
@@ -3140,13 +3155,17 @@ async function checkGistForUpdates(){
   // Skip if user is actively editing (an input is focused)
   if(document.activeElement && document.activeElement.tagName === 'INPUT') return;
   try {
+    const hdrs = { Authorization:'Bearer '+token };
+    if(_gistEtag) hdrs['If-None-Match'] = _gistEtag;
     const res = await fetch('https://api.github.com/gists/'+gistId, {
-      headers:{ Authorization:'Bearer '+token },
+      headers: hdrs,
       cache:'no-store'
     });
+    if(res.status === 304) return; // 雲端沒變 — 304 不計入 API 額度
     if(res.status === 404){ localStorage.removeItem('gh_gist_id'); return; }
     if(res.status === 403 || res.status === 429){ _rateLimitedUntil = Date.now() + 30*60*1000; return; }
     if(!res.ok) return;
+    _gistEtag = res.headers.get('ETag') || _gistEtag;
     const data = await res.json();
     const content = data.files[GIST_FILENAME]?.content;
     if(!content) return;
@@ -3171,18 +3190,18 @@ async function checkGistForUpdates(){
 }
 
 function startGistPollTimer(){
-  // Poll every 5 minutes while the tab is visible (rate-limit friendly)
+  // Poll every 10s while visible — ETag 條件請求讓「沒變」的輪詢回 304，不計入 API 額度
   clearInterval(_gistPollTimer);
   _gistPollTimer = setInterval(()=>{
     if(document.visibilityState === 'visible') checkGistForUpdates();
-  }, 5 * 60 * 1000);
+  }, 10 * 1000);
 }
 
 // Immediate check when user switches back — but throttle to once per 30s
 let _lastFocusCheck = 0;
 function focusCheck(){
   const now = Date.now();
-  if(now - _lastFocusCheck < 30000) return; // 30s 冷卻
+  if(now - _lastFocusCheck < 3000) return; // 3s 去重（focus 與 visibilitychange 會同時觸發）
   _lastFocusCheck = now;
   checkGistForUpdates();
 }
@@ -3200,10 +3219,10 @@ window.addEventListener('online', ()=>{
 
 // ── Defensive save: iOS background / tab close ────────────────────────────────
 document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState === 'hidden') saveData();
+  if(document.visibilityState === 'hidden'){ saveData(); flushGistSync(); }
 });
-window.addEventListener('beforeunload', ()=>{ saveData(); });
-window.addEventListener('pagehide', ()=>{ saveData(); }); // iOS Safari
+window.addEventListener('beforeunload', ()=>{ saveData(); flushGistSync(); });
+window.addEventListener('pagehide', ()=>{ saveData(); flushGistSync(); }); // iOS Safari
 
 // ── Enter key: blur input (dismiss keyboard, don't jump to next field) ─────────
 document.addEventListener('keydown', e=>{
