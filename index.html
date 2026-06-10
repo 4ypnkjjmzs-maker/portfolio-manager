@@ -677,7 +677,7 @@ function buildAssetCards(){
           <div class="input-group">
             <div class="input-label">${isUSD ? '金額 (USD $)' : '現有金額'}</div>
             <input class="input-field" id="cur-${a.id}" type="number" inputmode="decimal"
-              value="${isUSD ? (a.current/exchangeRate).toFixed(0) : a.current}" placeholder="0"
+              value="${isUSD ? +(a.current/exchangeRate).toFixed(2) : a.current}" placeholder="0"
               style="${isUSD ? 'border-color:rgba(91,155,213,.4)' : ''}">
             ${isUSD ? `<div class="usd-hint" id="twd-${a.id}">≈ NT$ ${Math.round(a.current).toLocaleString('zh-TW')}</div>` : ''}
           </div>
@@ -721,7 +721,7 @@ function buildAssetCards(){
           <div style="flex:1;min-width:0">
             <div class="input-label">成本 ${isUSD?'(USD)':'(NT$)'}</div>
             <input class="input-field" id="cost-${a.id}" type="number" inputmode="decimal" step="any"
-              value="${a.costBasis>0 ? (isUSD ? a.costBasis.toFixed(0) : a.costBasis) : ''}"
+              value="${a.costBasis>0 ? (isUSD ? +a.costBasis.toFixed(2) : a.costBasis) : ''}"
               placeholder="0" style="padding:8px 10px;font-size:13px;${isUSD?'border-color:rgba(91,155,213,.4)':''}">
           </div>
           <div style="flex:1.2;min-width:0;padding:10px 12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)">
