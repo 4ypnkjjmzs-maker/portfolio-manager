@@ -9,7 +9,7 @@
 :root {
   --bg:#0a0a0a; --surface:#151515; --surface2:#1e1e1e; --border:#282828;
   --gold:#c9a84c; --gold2:#e8c97a; --red:#e05555; --green:#4caf82;
-  --text:#ededed; --text2:#9a9a9a; --muted:#5e5e5e;
+  --text:#ededed; --text2:#9a9a9a; --muted:#5e5e5e; --blue:#5b8def;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif;min-height:100vh;overflow-x:hidden;}
@@ -1128,6 +1128,7 @@ function refreshHoldings(){
             +'<div style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:var(--green)">'+cashPct.toFixed(0)+'%</div>'
           +'</div>'
         +'</div>'
+        +buildDriftMonitor(total)
       +'</div>';
   }
 
@@ -2002,24 +2003,7 @@ async function tryAutoFetch(id){
   const idx = assetIndex(id); if(idx<0) return;
   const a = assets[idx];
   const sym = getYahooTicker(a.ticker);
-  const endpoints = [
-    'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
-    'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
-  ];
-  const proxies = ['', 'https://corsproxy.io/?url=', 'https://api.allorigins.win/raw?url=', 'https://api.allorigins.win/get?url='];
-  let found = null;
-  outer: for(const ep of endpoints){
-    for(const px of proxies){
-      try {
-        const bust2='&_t='+Date.now(); const ep2b=ep+(ep.includes('?')?bust2:bust2.replace('&','?')); const url = px ? px+encodeURIComponent(ep2b) : ep2b;
-        const res = await fetch(url, {signal:AbortSignal.timeout(6000),cache:'no-store'});
-        const raw = await res.json();
-        const body = raw.contents ? JSON.parse(raw.contents) : raw;
-        const p = body?.chart?.result?.[0]?.meta?.regularMarketPrice;
-        if(p){ found=p; break outer; }
-      } catch(e){}
-    }
-  }
+  const found = await yahooFetchPrice(sym);
   if(found){ applyPrice(id, found); }
   else { alert('自動抓取失敗，請手動輸入'); showPriceModal(id); }
 }
@@ -2032,28 +2016,11 @@ async function fetchAllPrices(){
   // Auto-update exchange rate first
   await fetchRate();
   let updated=0, failed=[];
-  await Promise.all(investable.map(async a=>{
+  // 序列抓取：每檔間隔 400ms，共用成功 proxy
+  for(const a of investable){
     const priceBtn = document.getElementById('pricebtn-'+a.id);
     if(priceBtn){ priceBtn.textContent='⏳'; priceBtn.disabled=true; }
-    const sym = getYahooTicker(a.ticker);
-    const endpoints = [
-      'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
-      'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
-    ];
-    const proxies = ['', 'https://corsproxy.io/?url=', 'https://api.allorigins.win/raw?url=', 'https://api.allorigins.win/get?url='];
-    let found = null;
-    outer: for(const ep of endpoints){
-      for(const px of proxies){
-        try {
-          const bust2='&_t='+Date.now(); const ep2b=ep+(ep.includes('?')?bust2:bust2.replace('&','?')); const url = px ? px+encodeURIComponent(ep2b) : ep2b;
-          const res = await fetch(url,{signal:AbortSignal.timeout(6000),cache:'no-store'});
-          const raw = await res.json();
-          const body = raw.contents ? JSON.parse(raw.contents) : raw;
-          const p = body?.chart?.result?.[0]?.meta?.regularMarketPrice;
-          if(p){ found=p; break outer; }
-        } catch(e){}
-      }
-    }
+    const found = await yahooFetchPrice(getYahooTicker(a.ticker));
     if(priceBtn){ priceBtn.textContent='↻'; priceBtn.disabled=false; }
     if(found){
       const idx2 = assetIndex(a.id); if(idx2<0) return;
@@ -2074,7 +2041,11 @@ async function fetchAllPrices(){
       updatePriceDisplay(a.id);
       updated++;
     } else { failed.push(a.ticker); }
-  }));
+    await _sleep(400);
+  }
+  // 手動更新成功 → 解除 backoff；整輪失敗 → 啟動 10 分鐘 backoff
+  if(updated > 0){ _yahooBackoffUntil = 0; }
+  else if(investable.length > 0){ _yahooBackoffUntil = Date.now() + 10*60*1000; }
   if(btn){
     const now=new Date();
     const ts=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
@@ -2091,10 +2062,16 @@ async function fetchAllPrices(){
   }
   nextRefreshAt = Date.now() + AUTO_REFRESH_MS;
   updateCountdown();
-  if(updated>0){ updateCalc(); saveData(); }
+  if(updated>0){ updateCalc(); }
 }
 
 async function silentFetchAll(){
+  // 整輪失敗 backoff：暫停期間跳過自動更新
+  if(Date.now() < _yahooBackoffUntil){
+    nextRefreshAt = Date.now() + AUTO_REFRESH_MS;
+    updateCountdown();
+    return;
+  }
   // Auto-update exchange rate
   await fetchRate();
   const investable = assets.filter(a=>(a.leverage!=null?a.leverage:1)!==0 && (a.shares||0)>0);
@@ -2102,26 +2079,9 @@ async function silentFetchAll(){
   const el = document.getElementById('refreshCountdown');
   if(el) el.textContent='↻ 更新中…';
   let updated = 0;
-  await Promise.all(investable.map(async a=>{
-    const sym = getYahooTicker(a.ticker);
-    const endpoints = [
-      'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
-      'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
-    ];
-    const proxies = ['', 'https://corsproxy.io/?url=', 'https://api.allorigins.win/raw?url=', 'https://api.allorigins.win/get?url='];
-    let found = null;
-    outer: for(const ep of endpoints){
-      for(const px of proxies){
-        try {
-          const bust2='&_t='+Date.now(); const ep2b=ep+(ep.includes('?')?bust2:bust2.replace('&','?')); const url = px ? px+encodeURIComponent(ep2b) : ep2b;
-          const res = await fetch(url, {signal: AbortSignal.timeout(6000), cache:'no-store'});
-          const raw = await res.json();
-          const body = raw.contents ? JSON.parse(raw.contents) : raw;
-          const p = body?.chart?.result?.[0]?.meta?.regularMarketPrice;
-          if(p){ found=p; break outer; }
-        } catch(e){}
-      }
-    }
+  // 序列抓取：每檔間隔 400ms，避免並發轟炸 proxy
+  for(const a of investable){
+    const found = await yahooFetchPrice(getYahooTicker(a.ticker));
     if(found){
       const idx = assetIndex(a.id); if(idx<0) return;
       assets[idx].lastPrice = found;
@@ -2139,8 +2099,14 @@ async function silentFetchAll(){
       updatePriceDisplay(a.id);
       updated++;
     }
-  }));
-  if(updated > 0){ updateCalc(); saveData(); }
+    await _sleep(400);
+  }
+  // 整輪全部失敗 → 暫停自動更新 10 分鐘
+  if(updated === 0 && investable.length > 0){
+    _yahooBackoffUntil = Date.now() + 10*60*1000;
+    if(el) el.textContent='⏸ 來源暫時無回應';
+  }
+  if(updated > 0){ _yahooBackoffUntil = 0; updateCalc(); }
   const now = new Date();
   const ts = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
   const saveEl = document.getElementById('saveStatus');
@@ -2458,27 +2424,7 @@ async function fetchOneAsset(id){
     console.warn('fetchOneAsset: no ticker for', a.ticker);
     return;
   }
-  const endpoints=[
-    'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
-    'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d'
-  ];
-  const proxies=['', 'https://corsproxy.io/?url=', 'https://api.allorigins.win/raw?url=', 'https://api.allorigins.win/get?url='];
-  let found=null;
-  outer: for(const ep of endpoints){
-    for(const px of proxies){
-      try{
-        const bust='&_t='+Date.now();
-        const ep2=ep+bust;
-        const url=px?px+encodeURIComponent(ep2):ep2;
-        const res=await fetch(url,{signal:AbortSignal.timeout(8000),cache:'no-store'});
-        if(!res.ok) continue;
-        const raw=await res.json();
-        const body=raw.contents?JSON.parse(raw.contents):raw;
-        const p=body?.chart?.result?.[0]?.meta?.regularMarketPrice;
-        if(p && p>0){ found=p; break outer; }
-      }catch(e){ console.debug('fetchOneAsset try fail', a.ticker, e?.message); }
-    }
-  }
+  const found = await yahooFetchPrice(sym, 8000);
   if(btn){btn.textContent='↻';btn.disabled=false;}
   if(found){
     applyPrice(id,found);
@@ -2549,6 +2495,45 @@ function clearData(){
 
 // ── Quick Rebalance hint (per-group) ─────────────────────────────────────────
 // ── Group balance alert (第一層大區塊再平衡) ──────────────────────────────────
+function buildDriftMonitor(total){
+  if(!groups.length || total<=0) return '';
+  const badge = dev=>{
+    const c = dev>=30?'var(--red)':dev>=15?'var(--gold)':'var(--blue)';
+    const b = dev>=30?'rgba(224,85,85,.12)':dev>=15?'rgba(201,168,76,.12)':'rgba(91,141,239,.12)';
+    return '<span style="font-family:monospace;font-size:10px;font-weight:700;color:'+c+';background:'+b+';border:1px solid '+c+';border-radius:6px;padding:2px 7px;white-space:nowrap;min-width:48px;text-align:center;display:inline-block">'+dev.toFixed(1)+'%</span>';
+  };
+  let h = '<div style="border-top:1px solid var(--border);padding-top:10px">'
+    +'<div style="font-size:9px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-bottom:6px">偏移監測（相對偏離）</div>';
+  groups.forEach(g=>{
+    const ga = assetsInGroup(g.id);
+    const gCur = ga.reduce((s,a)=>s+a.current,0);
+    const gCurPct = total>0 ? gCur/total*100 : 0;
+    const l1 = g.pct>0 ? Math.abs(gCurPct-g.pct)/g.pct*100 : 0;
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0 4px">'
+      +'<span style="font-size:13px;font-weight:700;color:'+groupColor(g.id)+'">'+g.name+'</span>'
+      +'<div style="display:flex;align-items:center;gap:8px">'
+        +'<span style="font-family:monospace;font-size:11px;color:var(--text2)">'+gCurPct.toFixed(1)+'% / '+g.pct+'%</span>'
+        +badge(l1)
+      +'</div>'
+    +'</div>';
+    const innerSum = ga.reduce((s,a)=>s+a.innerPct,0)||1;
+    ga.forEach(a=>{
+      const tgtInner = a.innerPct/innerSum*100;
+      const actInner = gCur>0 ? a.current/gCur*100 : 0;
+      const l2 = tgtInner>0 ? Math.abs(actInner-tgtInner)/tgtInner*100 : 0;
+      h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0 3px 14px">'
+        +'<span style="font-size:11px;color:var(--text2)">'+a.ticker+'</span>'
+        +'<div style="display:flex;align-items:center;gap:8px">'
+          +'<span style="font-family:monospace;font-size:10px;color:var(--muted)">'+actInner.toFixed(1)+'% / '+Math.round(tgtInner)+'%</span>'
+          +badge(l2)
+        +'</div>'
+      +'</div>';
+    });
+  });
+  h += '</div>';
+  return h;
+}
+
 function renderGroupBalance(){
   const el = document.getElementById('groupBalanceAlert');
   if(!el) return;
@@ -2636,97 +2621,111 @@ function renderQuickRebal(gid, after){
   const innerSum = ga.reduce((s,a)=>s+a.innerPct,0)||1;
   const gCurTotal = ga.reduce((s,a)=>s+a.current,0);
 
-  // ── 第二層：以群組目前總額為分母，與第一層 40/60 脫鉤 ────────────────────
-  // 每個資產的偏移 = |目標 − 現值| ÷ 目標 × 100%（相對自己的目標）
+  // ── 第二層：純群組內互調，以群組目前實際總額為分母（與第一層完全脫鉤）──
+  // 相對偏離 = |目標 − 現值| ÷ 目標 × 100%
   const deviations = ga.map(a=>{
     const tgtAmt = Math.round(gCurTotal * (a.innerPct/innerSum));
     const diff = tgtAmt - a.current;
     const devPct = tgtAmt>0 ? Math.abs(diff)/tgtAmt*100 : 0;
     return {a, tgtAmt, diff, devPct};
   });
+  const maxDiffPct = gCurTotal>0 ? Math.max(...deviations.map(d=>d.devPct)) : 0;
 
-  const maxDiffPct = Math.max(...deviations.map(d=>d.devPct));
+  // ── 第一層相對偏離（此群組實際% vs 目標%）──
+  const total = totalCurrent();
+  const gCurPct = total>0 ? gCurTotal/total*100 : 0;
+  const l1Dev = g.pct>0 ? Math.abs(gCurPct-g.pct)/g.pct*100 : 0;
 
-  // 安全區：偏移 < 20% → 顯示綠色安全區卡
-  if(maxDiffPct < 20){
-    el.style.display='block';
-    el.innerHTML=`<div style="background:rgba(76,175,130,.08);border:1px solid rgba(76,175,130,.25);border-radius:10px;padding:12px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--green);text-transform:uppercase">⚡ 快速再平衡</div>
-      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green)">最大偏移 ${maxDiffPct.toFixed(1)}%</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:10px;padding:2px 0">
-      <div style="width:3px;align-self:stretch;min-height:16px;background:var(--green);border-radius:2px"></div>
-      <span style="font-size:12px;font-weight:600;color:var(--green)">安全區・不動</span>
-    </div>
-  </div>`;
-    return;
+  // ── 顏色門檻：≥30% 紅、15–30% 金、<15% 藍（永遠顯示）──
+  const tier = maxDiffPct>=30?'red':maxDiffPct>=15?'gold':'blue';
+  const clr = tier==='red'?'var(--red)':tier==='gold'?'var(--gold)':'var(--blue)';
+  const bg  = tier==='red'?'rgba(224,85,85,.08)':tier==='gold'?'rgba(201,168,76,.08)':'rgba(91,141,239,.07)';
+  const bdr = tier==='red'?'rgba(224,85,85,.3)':tier==='gold'?'rgba(201,168,76,.3)':'rgba(91,141,239,.28)';
+  const advice = tier==='red'?'偏移較大，建議盡快再平衡':tier==='gold'?'偏移已達門檻，可擇機調整':'群組內均衡・不需動作';
+
+  // ── 🚨 任一層相對偏離達 30% 警示 ──
+  let alertHtml='';
+  if(l1Dev>=30 || maxDiffPct>=30){
+    const which=[];
+    if(l1Dev>=30) which.push('第一層 '+l1Dev.toFixed(1)+'%');
+    if(maxDiffPct>=30) which.push('第二層 '+maxDiffPct.toFixed(1)+'%');
+    alertHtml = `<div style="background:rgba(224,85,85,.15);border:1px solid rgba(224,85,85,.45);border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:14px">🚨</span>
+      <span style="font-size:11px;font-weight:700;color:var(--red);line-height:1.4">相對偏離達 30%（${which.join('・')}），建議立即再平衡</span>
+    </div>`;
   }
 
-  const pctDev = maxDiffPct.toFixed(1);
-  const urgency = maxDiffPct>30?'var(--red)':'var(--gold)';
-  const urgBg   = maxDiffPct>30?'rgba(224,85,85,.08)':'rgba(201,168,76,.08)';
-  const urgBdr  = maxDiffPct>30?'rgba(224,85,85,.3)':'rgba(201,168,76,.3)';
-  const advice  = maxDiffPct>30?'偏移較大，建議盡快再平衡':'偏移已達門檻，可擇機調整';
-
-  const sells = deviations.filter(d=>d.diff<0).sort((a,b)=>a.diff-b.diff);
-  const buys  = deviations.filter(d=>d.diff>0).sort((a,b)=>b.diff-a.diff);
-
-  let sellHtml='', buyHtml='';
-  sells.forEach(({a,tgtAmt,diff})=>{
-    const cur=g.currency==='USD'?'$'+Math.round(Math.abs(diff)/(exchangeRate||32)).toLocaleString('en-US')+' USD':'$'+Math.round(Math.abs(diff)).toLocaleString('zh-TW');
-    sellHtml+=`<div style="background:rgba(224,85,85,.1);border:1px solid rgba(224,85,85,.25);border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
-      <div><span style="color:var(--red);font-weight:700">↓ ${a.ticker}</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(a.innerPct/innerSum*100)}% → $${fmt(tgtAmt)}</div></div>
-      <div style="text-align:right"><div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--red)">-${cur}</div><div style="font-size:10px;color:var(--muted)">現 $${fmt(a.current)}</div></div>
-    </div>`;
-  });
-  buys.forEach(({a,tgtAmt,diff})=>{
-    const cur=g.currency==='USD'?'$'+Math.round(diff/(exchangeRate||32)).toLocaleString('en-US')+' USD':'$'+fmt(diff);
-    buyHtml+=`<div style="background:rgba(76,175,130,.08);border:1px solid rgba(76,175,130,.25);border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
-      <div><span style="color:var(--green);font-weight:700">↑ ${a.ticker}</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(a.innerPct/innerSum*100)}% → $${fmt(tgtAmt)}</div></div>
-      <div style="text-align:right"><div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--green)">+${cur}</div><div style="font-size:10px;color:var(--muted)">現 $${fmt(a.current)}</div></div>
-    </div>`;
-  });
+  // ── 買賣建議：純群組內互調（賣多少剛好買多少），≥15% 才列出 ──
+  let suggestHtml='';
+  if(maxDiffPct>=15){
+    const sells = deviations.filter(d=>d.diff<0).sort((a,b)=>a.diff-b.diff);
+    const buys  = deviations.filter(d=>d.diff>0).sort((a,b)=>b.diff-a.diff);
+    let sellHtml='', buyHtml='';
+    sells.forEach(({a,tgtAmt,diff})=>{
+      const cur=g.currency==='USD'?'$'+Math.round(Math.abs(diff)/(exchangeRate||32)).toLocaleString('en-US')+' USD':'$'+Math.round(Math.abs(diff)).toLocaleString('zh-TW');
+      sellHtml+=`<div style="background:rgba(224,85,85,.1);border:1px solid rgba(224,85,85,.25);border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+        <div><span style="color:var(--red);font-weight:700">↓ ${a.ticker}</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(a.innerPct/innerSum*100)}% → $${fmt(tgtAmt)}</div></div>
+        <div style="text-align:right"><div style="font-family:monospace;font-size:13px;font-weight:700;color:var(--red)">-${cur}</div><div style="font-size:10px;color:var(--muted)">現 $${fmt(a.current)}</div></div>
+      </div>`;
+    });
+    buys.forEach(({a,tgtAmt,diff})=>{
+      const cur=g.currency==='USD'?'$'+Math.round(diff/(exchangeRate||32)).toLocaleString('en-US')+' USD':'$'+fmt(diff);
+      buyHtml+=`<div style="background:rgba(76,175,130,.08);border:1px solid rgba(76,175,130,.25);border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+        <div><span style="color:var(--green);font-weight:700">↑ ${a.ticker}</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(a.innerPct/innerSum*100)}% → $${fmt(tgtAmt)}</div></div>
+        <div style="text-align:right"><div style="font-family:monospace;font-size:13px;font-weight:700;color:var(--green)">+${cur}</div><div style="font-size:10px;color:var(--muted)">現 $${fmt(a.current)}</div></div>
+      </div>`;
+    });
+    suggestHtml = (sells.length?'<div style="font-family:monospace;font-size:9px;color:var(--red);letter-spacing:1px;margin:10px 0 5px;text-transform:uppercase">賣出</div>'+sellHtml:'')
+                + (buys.length?'<div style="font-family:monospace;font-size:9px;color:var(--green);letter-spacing:1px;margin:10px 0 5px;text-transform:uppercase">買入</div>'+buyHtml:'');
+  }
 
   el.style.display='block';
-  el.innerHTML=`<div style="background:${urgBg};border:1px solid ${urgBdr};border-radius:10px;padding:12px">
+  el.innerHTML=`<div style="background:${bg};border:1px solid ${bdr};border-radius:10px;padding:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:${urgency};text-transform:uppercase">⚡ 快速再平衡</div>
-      <div style="font-family:'Space Mono',monospace;font-size:10px;color:${urgency}">最大偏移 ${pctDev}%</div>
+      <div style="font-family:monospace;font-size:9px;letter-spacing:2px;color:${clr};text-transform:uppercase">⚡ 快速再平衡（群組內）</div>
+      <div style="font-family:monospace;font-size:10px;color:${clr}">最大偏移 ${maxDiffPct.toFixed(1)}%</div>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;padding:2px 0 12px 0">
-      <div style="width:3px;align-self:stretch;min-height:16px;background:${urgency};border-radius:2px"></div>
-      <span style="font-size:12px;font-weight:600;color:${urgency}">${advice}</span>
+    ${alertHtml}
+    <div style="display:flex;align-items:center;gap:10px;padding:2px 0">
+      <div style="width:3px;align-self:stretch;min-height:16px;background:${clr};border-radius:2px"></div>
+      <span style="font-size:12px;font-weight:600;color:${clr}">${advice}</span>
     </div>
-    ${sells.length?'<div style="font-family:monospace;font-size:9px;color:var(--red);letter-spacing:1px;margin-bottom:5px;text-transform:uppercase">賣出</div>'+sellHtml:''}
-    ${buys.length?'<div style="font-family:monospace;font-size:9px;color:var(--green);letter-spacing:1px;margin-bottom:5px;text-transform:uppercase">買入</div>'+buyHtml:''}
+    ${suggestHtml}
   </div>`;
 }
 
-
 // ── Fetch USD/TWD exchange rate ───────────────────────────────────────────────
-async function fetchRate(){
-  const sym = 'TWD=X'; // Yahoo Finance USD/TWD ticker
+// ── 共用 Yahoo 抓價 helper：只走 proxy、記住成功 proxy、支援整輪失敗 backoff ──
+let _goodProxy = null;
+let _yahooBackoffUntil = 0;
+const YAHOO_PROXIES = ['https://corsproxy.io/?url=', 'https://api.allorigins.win/raw?url=', 'https://api.allorigins.win/get?url='];
+const _sleep = ms => new Promise(r=>setTimeout(r, ms));
+async function yahooFetchPrice(sym, timeoutMs){
+  if(!sym) return null;
   const endpoints = [
     'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
     'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
   ];
-  const proxies = ['', 'https://corsproxy.io/?url=', 'https://api.allorigins.win/raw?url=', 'https://api.allorigins.win/get?url='];
-  let found = null;
-  outer: for(const ep of endpoints){
+  // 上次成功的 proxy 排第一，其餘依序備援
+  const proxies = _goodProxy ? [_goodProxy, ...YAHOO_PROXIES.filter(p=>p!==_goodProxy)] : [...YAHOO_PROXIES];
+  for(const ep of endpoints){
     for(const px of proxies){
       try{
-        const bust = '&_t='+Date.now();
-        const ep2 = ep + bust;
-        const url = px ? px+encodeURIComponent(ep2) : ep2;
-        const res = await fetch(url, {signal:AbortSignal.timeout(6000), cache:'no-store'});
+        const url = px + encodeURIComponent(ep + '&_t=' + Date.now());
+        const res = await fetch(url, {signal:AbortSignal.timeout(timeoutMs||6000), cache:'no-store'});
+        if(!res.ok) continue;
         const raw = await res.json();
         const body = raw.contents ? JSON.parse(raw.contents) : raw;
         const p = body?.chart?.result?.[0]?.meta?.regularMarketPrice;
-        if(p && p > 0){ found = p; break outer; }
-      } catch(e){}
+        if(p && p>0){ _goodProxy = px; return p; }
+      }catch(e){}
     }
   }
+  return null;
+}
+
+async function fetchRate(){
+  const found = await yahooFetchPrice('TWD=X');
   if(found){
     exchangeRate = Math.round(found * 100) / 100; // round to 2 decimal places
     localStorage.setItem('exchangeRate', String(exchangeRate));
@@ -2912,13 +2911,16 @@ async function loadFromGist(){
       confirmText:'載入',
       confirmColor:'var(--green)',
       onConfirm: ()=>{
-        groups = s.groups||groups; assets = s.assets;
-        uid = s.uid||Math.max(...assets.map(a=>a.id),0);
-        gid = s.gid||Math.max(...groups.map(g=>g.id),0);
-        if(s.withdraw) document.getElementById('withdrawInput').value=s.withdraw;
-        if(s.exchangeRate) exchangeRate = Number(s.exchangeRate)||32;
-        saveData();
-        buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
+        _applyingRemote = true;
+        try{
+          groups = s.groups||groups; assets = s.assets;
+          uid = s.uid||Math.max(...assets.map(a=>a.id),0);
+          gid = s.gid||Math.max(...groups.map(g=>g.id),0);
+          if(s.withdraw) document.getElementById('withdrawInput').value=s.withdraw;
+          if(s.exchangeRate) exchangeRate = Number(s.exchangeRate)||32;
+          saveData();
+          buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
+        } finally { _applyingRemote = false; }
         showCloudStatus('☁ 雲端資料已載入 ✓', 'var(--green)');
       }
     });
@@ -2947,6 +2949,12 @@ function saveData(){
       savedAt: Date.now()
     }));
     showSaveStatus();
+    // 內容指紋（不含 savedAt）：資料沒變就不上雲
+    const fp = JSON.stringify({groups, assets, uid, gid, exchangeRate,
+      withdraw: document.getElementById('withdrawInput').value});
+    if(_applyingRemote){ _lastSyncFingerprint = fp; return; } // 套用雲端中：只存本機，斬斷回音迴圈
+    if(fp === _lastSyncFingerprint) return;                    // 沒變化：跳過雲端同步
+    _lastSyncFingerprint = fp;
     scheduleGistSync(); // Auto cloud sync
   } catch(e){
     const el = document.getElementById('saveStatus');
@@ -2972,6 +2980,8 @@ function showSaveStatus(){
 
 // ── Auto Cloud Sync ──────────────────────────────────────────────────────────
 let _gistSyncTimer = null;
+let _applyingRemote = false;     // 套用雲端資料中：不回傳上雲
+let _lastSyncFingerprint = '';   // 上次排程上雲的內容指紋
 
 // Called after every saveData — debounced 5 seconds
 function scheduleGistSync(){
@@ -3014,6 +3024,7 @@ async function autoSyncToGist(){
       // If rate limited (403 / 429), back off 30 min and stop
       if(res.status === 403 || res.status === 429){
         _rateLimitedUntil = Date.now() + 30*60*1000;
+        _lastSyncFingerprint = ''; // 失敗：允許之後重新排程
         showCloudIndicator('error');
         const el = document.getElementById('saveStatus');
         if(el){
@@ -3038,6 +3049,7 @@ async function autoSyncToGist(){
       if(attempt < 2){
         await new Promise(r=>setTimeout(r, 1500));
       } else {
+        _lastSyncFingerprint = ''; // 失敗：允許之後重新排程
         showCloudIndicator('error');
       }
     }
@@ -3072,15 +3084,18 @@ async function autoLoadFromGist(){
       showCloudIndicator('ok');
       return; // Local is already up to date
     }
-    // Gist is newer — load silently
-    groups = s.groups||groups; assets = s.assets;
-    uid = s.uid||Math.max(...assets.map(a=>a.id),0);
-    gid = s.gid||Math.max(...groups.map(g=>g.id),0);
-    if(s.withdraw) document.getElementById('withdrawInput').value=s.withdraw;
-    if(s.exchangeRate) exchangeRate = Number(s.exchangeRate)||32;
-    localStorage.setItem(accountStoreKey(), JSON.stringify({...s, savedAt:s.savedAt}));
-    localStorage.setItem('gh_gist_savedAt', String(gistSavedAt));
-    buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
+    // Gist is newer — load silently（旗標防止回傳上雲造成乒乓迴圈）
+    _applyingRemote = true;
+    try{
+      groups = s.groups||groups; assets = s.assets;
+      uid = s.uid||Math.max(...assets.map(a=>a.id),0);
+      gid = s.gid||Math.max(...groups.map(g=>g.id),0);
+      if(s.withdraw) document.getElementById('withdrawInput').value=s.withdraw;
+      if(s.exchangeRate) exchangeRate = Number(s.exchangeRate)||32;
+      localStorage.setItem(accountStoreKey(), JSON.stringify({...s, savedAt:s.savedAt}));
+      localStorage.setItem('gh_gist_savedAt', String(gistSavedAt));
+      buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
+    } finally { _applyingRemote = false; }
     showCloudIndicator('loaded');
   } catch(e){
     // Silent fail — don't bother user if background sync fails
@@ -3135,15 +3150,18 @@ async function checkGistForUpdates(){
     const localSavedAt = Number(localStorage.getItem('gh_gist_savedAt'))||0;
     const gistSavedAt = s.savedAt||0;
     if(gistSavedAt <= localSavedAt) return; // Already up to date
-    // Gist is newer — silently update
-    groups=s.groups||groups; assets=s.assets;
-    uid=s.uid||Math.max(...assets.map(a=>a.id),0);
-    gid=s.gid||Math.max(...groups.map(g=>g.id),0);
-    if(s.withdraw) document.getElementById('withdrawInput').value=s.withdraw;
-    if(s.exchangeRate) exchangeRate=Number(s.exchangeRate)||32;
-    localStorage.setItem(accountStoreKey(),JSON.stringify({...s,savedAt:s.savedAt}));
-    localStorage.setItem('gh_gist_savedAt',String(gistSavedAt));
-    buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
+    // Gist is newer — silently update（旗標防止回傳上雲造成乒乓迴圈）
+    _applyingRemote = true;
+    try{
+      groups=s.groups||groups; assets=s.assets;
+      uid=s.uid||Math.max(...assets.map(a=>a.id),0);
+      gid=s.gid||Math.max(...groups.map(g=>g.id),0);
+      if(s.withdraw) document.getElementById('withdrawInput').value=s.withdraw;
+      if(s.exchangeRate) exchangeRate=Number(s.exchangeRate)||32;
+      localStorage.setItem(accountStoreKey(),JSON.stringify({...s,savedAt:s.savedAt}));
+      localStorage.setItem('gh_gist_savedAt',String(gistSavedAt));
+      buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
+    } finally { _applyingRemote = false; }
     showCloudIndicator('loaded');
   } catch(e){}
 }
