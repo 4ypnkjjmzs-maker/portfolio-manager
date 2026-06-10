@@ -3,13 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<link rel="manifest" href="manifest.json">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="Portfolio">
-<meta name="theme-color" content="#0a0a0a">
-<link rel="apple-touch-icon" href="icon-180.png">
 <title>資產配置管理器</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
@@ -302,7 +295,7 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
 
 <div class="header">
   <div class="header-top">
-    <span class="app-title">Portfolio <span style="opacity:.45;letter-spacing:1px">v2026.06.10e</span></span>
+    <span class="app-title">Portfolio <span style="opacity:.45;letter-spacing:1px">v2026.06.10b</span></span>
     
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -1862,11 +1855,7 @@ function autoFixGroupSum(){
 
 // ── Storage ───────────────────────────────────────────────────────────────────
 // ── Account management ────────────────────────────────────────────────────────
-let // ── PWA: 註冊 service worker（離線可開、秒開；失敗不影響任何功能）──
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js').catch(()=>{});
-}
-currentAccount = localStorage.getItem('currentAccount') || 'A';
+let currentAccount = localStorage.getItem('currentAccount') || 'A';
 
 function accountStoreKey(acct){
   return 'portfolio_v2_' + (acct||currentAccount);
@@ -2753,28 +2742,23 @@ async function fetchRate(){
 
 // ── Find portfolio Gist by searching user's gists ────────────────────────────
 // Always picks the OLDEST matching gist so all devices converge on the same one.
-let _lastGistError = '';
 async function findPortfolioGist(token){
-  _lastGistError = '';
   try {
     const res = await fetch('https://api.github.com/gists?per_page=100', {
       headers: { Authorization:'Bearer '+token },
-      cache:'no-store',
-      signal: AbortSignal.timeout(10000)
+      cache:'no-store'
     });
-    if(res.status === 401){ _lastGistError = 'Token 無效（401）— 請重新輸入'; return null; }
-    if(res.status === 403){ _lastGistError = 'API 速率限制（403）— 請稍後再試'; return null; }
-    if(!res.ok){ _lastGistError = 'GitHub 回應錯誤 '+res.status; return null; }
+    if(!res.ok) return null;
     const gists = await res.json();
     // Find ALL gists containing our portfolio file
     const matches = gists.filter(g => g.files && g.files[GIST_FILENAME]);
-    if(!matches.length){ _lastGistError = '帳號內沒有 portfolio 資料檔'; return null; }
+    if(!matches.length) return null;
     // Sort by updated date descending → pick the most recently updated (has latest data)
     matches.sort((a,b)=> new Date(b.updated_at) - new Date(a.updated_at));
     const canonical = matches[0];
     localStorage.setItem('gh_gist_id', canonical.id);
     return canonical.id;
-  } catch(e){ _lastGistError = '網路錯誤：'+((e&&e.message)||e); return null; }
+  } catch(e){ return null; }
 }
 
 // Re-link to the canonical (oldest) gist — clears local id and re-resolves
@@ -2789,7 +2773,7 @@ async function relinkCloud(){
     localStorage.removeItem('gh_gist_savedAt'); // force reload
     await loadFromGist();
   } else {
-    showCloudStatus('⚠ '+(_lastGistError||'找不到雲端資料'), 'var(--gold)');
+    showCloudStatus('⚠ 找不到雲端資料', 'var(--gold)');
   }
 }
 
@@ -2913,13 +2897,12 @@ async function loadFromGist(){
   if(!gistId){
     showCloudStatus('🔍 搜尋雲端資料…', 'var(--text2)');
     gistId = await findPortfolioGist(token);
-    if(!gistId){ showCloudStatus('⚠ '+(_lastGistError||'找不到雲端資料，請先在另一台儲存'), 'var(--gold)'); return; }
+    if(!gistId){ showCloudStatus('⚠ 找不到雲端資料，請先在另一台儲存', 'var(--gold)'); return; }
   }
   showCloudStatus('⬇ 讀取中…', 'var(--text2)');
   try {
     const res = await fetch('https://api.github.com/gists/'+gistId, {
-      headers: { Authorization:'Bearer '+token },
-      signal: AbortSignal.timeout(10000)
+      headers: { Authorization:'Bearer '+token }
     });
     if(!res.ok) throw new Error('HTTP '+res.status);
     const data = await res.json();
@@ -3269,9 +3252,9 @@ document.addEventListener('keydown', e=>{
 });
 
 currentAccount = localStorage.getItem('currentAccount') || 'A';
-// ── PWA: 註冊 service worker（離線可開、秒開；失敗不影響任何功能）──
+// ── 清除先前版本註冊過的 service worker ──
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js').catch(()=>{});
+  navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{});
 }
 const savedAt = loadData();
 autoLoadFromGist(); // Auto-load from cloud if new
