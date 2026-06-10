@@ -295,7 +295,7 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
 
 <div class="header">
   <div class="header-top">
-    <span class="app-title">Portfolio <span style="opacity:.45;letter-spacing:1px">v2026.06.10a</span></span>
+    <span class="app-title">Portfolio <span style="opacity:.45;letter-spacing:1px">v2026.06.10b</span></span>
     
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -518,11 +518,11 @@ let groups = [
   makeGroup('台股', 50, 'TWD'),
 ];
 let assets = [
-  makeAsset(1, 'VT',      'Vanguard全球股票',  40, 5374336, 10.58, 1),
-  makeAsset(1, 'QQQ',     'Invesco那斯達克100', 40, 0,       21.9,  1),
-  makeAsset(1, 'SMH',     'VanEck半導體ETF',   20, 1940760, 31.3,  1),
-  makeAsset(2, '00631L',  '元大台灣50正2',      50, 2644056, 45.5,  2),
-  makeAsset(2, '正二現金', '備用加碼金',         50, 1954866, 0,     0),
+  makeAsset(1, 'VT',      'Vanguard全球股票',  40, 0, 10.58, 1),
+  makeAsset(1, 'QQQ',     'Invesco那斯達克100', 40, 0, 21.9,  1),
+  makeAsset(1, 'SMH',     'VanEck半導體ETF',   20, 0, 31.3,  1),
+  makeAsset(2, '00631L',  '元大台灣50正2',      50, 0, 45.5,  2),
+  makeAsset(2, '正二現金', '備用加碼金',         50, 0, 0,     0),
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -739,8 +739,8 @@ function buildAssetCards(){
       // Restore price and P&L display for this asset
       setTimeout(()=>{ updatePriceDisplay(a.id); updatePnlDisplay(a.id); }, 0);
 
-      // cur- and lev- need both input+change events
-        ['input','change'].forEach(evt => {
+      // cur- and lev- : input 已涵蓋打字與步進按鈕，change 會重複觸發故移除
+        ['input'].forEach(evt => {
           document.getElementById('cur-'+a.id).addEventListener(evt, function(){
             const idx = assetIndex(a.id); if(idx<0) return;
             const raw = Number(this.value)||0;
@@ -773,12 +773,6 @@ function buildAssetCards(){
             updatePnlDisplay(a.id);
             updateCalc();
           });
-          costEl.addEventListener('change', function(){
-            const idx = assetIndex(a.id); if(idx<0) return;
-            assets[idx].costBasis = Number(this.value)||0;
-            updatePnlDisplay(a.id);
-            updateCalc();
-          });
           costEl.addEventListener('blur', ()=>{ saveData(); });
         }
         const sharesEl = document.getElementById('shares-'+a.id);
@@ -795,7 +789,7 @@ function buildAssetCards(){
                 : Math.round(shares * assets[idx].lastPrice);
               const curEl = document.getElementById('cur-'+a.id);
               if(curEl && curEl !== document.activeElement)
-                curEl.value = isUSD ? (assets[idx].current/(exchangeRate||32)).toFixed(0) : assets[idx].current;
+                curEl.value = isUSD ? +(assets[idx].current/(exchangeRate||32)).toFixed(2) : assets[idx].current;
               const twdEl_s = document.getElementById('twd-'+a.id);
               if(twdEl_s) twdEl_s.textContent='≈ NT$ '+assets[idx].current.toLocaleString('zh-TW');
             }
@@ -1483,7 +1477,6 @@ const CRISIS_YEARS = [
 const SEV_COLOR = { severe:'var(--red)', moderate:'var(--gold)', mild:'#5b9bd5' };
 
 function calcPortfolioDD(ddMap){
-  const w=withdraw(); const after=totalCurrent()-w;
   let portDD=0;
   assets.forEach(a=>{
     const assetDD=ddMap&&a.ticker?ddMap[a.ticker]:null;
@@ -1908,16 +1901,21 @@ function loadData(){
 function switchAccount(acct){
   if(acct === currentAccount) return;
   saveData();
+  flushGistSync(); // 切帳前把待同步的變更送出
   currentAccount = acct;
+  // 重置同步狀態：指紋與 ETag 屬於上一個帳戶
+  _lastSyncFingerprint = '';
+  _gistEtag = null;
+  clearTimeout(_gistSyncTimer); _gistSyncTimer = null;
   localStorage.setItem('currentAccount', acct);
   uid=0; gid=0;
   groups=[makeGroup('美股',50,'USD'),makeGroup('台股',50,'TWD')];
   assets=[
-    makeAsset(1,'VT','Vanguard全球股票',40,5374336,10.58,1),
+    makeAsset(1,'VT','Vanguard全球股票',40,0,10.58,1),
     makeAsset(1,'QQQ','Invesco那斯達克100',40,0,21.9,1),
-    makeAsset(1,'SMH','VanEck半導體ETF',20,1940760,31.3,1),
-    makeAsset(2,'00631L','元大台灣50正2',50,2644056,45.5,2),
-    makeAsset(2,'正二現金','備用加碼金',50,1954866,0,0),
+    makeAsset(1,'SMH','VanEck半導體ETF',20,0,31.3,1),
+    makeAsset(2,'00631L','元大台灣50正2',50,0,45.5,2),
+    makeAsset(2,'正二現金','備用加碼金',50,0,0,0),
   ];
   document.getElementById('withdrawInput').value=0;
   loadData();
@@ -1949,12 +1947,12 @@ function applyPrice(id, price){
       : Math.round(a.shares * price);
     const curEl = document.getElementById('cur-'+id);
     if(curEl && curEl!==document.activeElement)
-      curEl.value = isUSD ? (assets[idx].current/(exchangeRate||32)).toFixed(0) : assets[idx].current;
+      curEl.value = isUSD ? +(assets[idx].current/(exchangeRate||32)).toFixed(2) : assets[idx].current;
     const twdEl = document.getElementById('twd-'+id);
     if(twdEl) twdEl.textContent='≈ NT$ '+assets[idx].current.toLocaleString('zh-TW');
   }
   updatePriceDisplay(id);
-  updateCalc(); saveData();
+  updateCalc();
 }
 
 function showPriceModal(id){
@@ -2034,7 +2032,7 @@ async function fetchAllPrices(){
           : Math.round(a.shares * found);
         const curEl = document.getElementById('cur-'+a.id);
         if(curEl && curEl!==document.activeElement)
-          curEl.value = isUSD ? (assets[idx2].current/(exchangeRate||32)).toFixed(0) : assets[idx2].current;
+          curEl.value = isUSD ? +(assets[idx2].current/(exchangeRate||32)).toFixed(2) : assets[idx2].current;
         const twdEl = document.getElementById('twd-'+a.id);
         if(twdEl) twdEl.textContent='≈ NT$ '+assets[idx2].current.toLocaleString('zh-TW');
       }
@@ -2093,7 +2091,7 @@ async function silentFetchAll(){
         : Math.round(a.shares * found);
       const curEl = document.getElementById('cur-'+a.id);
       if(curEl && curEl !== document.activeElement)
-        curEl.value = isUSD ? (assets[idx].current/(exchangeRate||32)).toFixed(0) : assets[idx].current;
+        curEl.value = isUSD ? +(assets[idx].current/(exchangeRate||32)).toFixed(2) : assets[idx].current;
       const twdEl = document.getElementById('twd-'+a.id);
       if(twdEl) twdEl.textContent='≈ NT$ '+assets[idx].current.toLocaleString('zh-TW');
       updatePriceDisplay(a.id);
@@ -2128,16 +2126,6 @@ function updateCountdown(){
   const secs = Math.floor((ms % 60000) / 1000);
   if(ms <= 0){ el.textContent = '更新中…'; }
   else { el.textContent = '下次更新 '+mins+':'+String(secs).padStart(2,'0'); }
-}
-
-function shareJSON(){
-  const state={ version:2, groups, assets, exchangeRate,
-    withdraw: document.getElementById('withdrawInput').value,
-    uid, gid, savedAt: Date.now() };
-  const text = JSON.stringify(state, null, 2);
-  if(navigator.share){
-    navigator.share({ title:'投資組合資料', text, files:[] }).catch(()=> showExportModal(text));
-  } else { showExportModal(text); }
 }
 
 function showExportModal(text){
@@ -2247,7 +2235,18 @@ function adjustContentPadding(){
 }
 
 // ── updateCalc ────────────────────────────────────────────────────────────────
-function updateCalc(){
+let _calcRaf = null;
+function updateCalc(immediate){
+  // rAF 節流：滑桿連續拖動時一幀最多重算一次
+  if(immediate === true){
+    if(_calcRaf){ cancelAnimationFrame(_calcRaf); _calcRaf = null; }
+    _updateCalcNow();
+    return;
+  }
+  if(_calcRaf) return;
+  _calcRaf = requestAnimationFrame(()=>{ _calcRaf = null; _updateCalcNow(); });
+}
+function _updateCalcNow(){
   refreshHoldings();
   refreshGroupMini();
   refreshRebalance();
@@ -2780,6 +2779,8 @@ async function relinkCloud(){
 
 // ── GitHub Gist Cloud Sync ───────────────────────────────────────────────────
 const GIST_FILENAME = 'portfolio-data.json';
+// 各帳戶獨立的 Gist 檔名：A 沿用舊檔名（相容既有資料），其他帳戶各自一檔
+function gistFile(){ return currentAccount==='A' ? GIST_FILENAME : 'portfolio-data-'+currentAccount+'.json'; }
 
 function getGistToken(){ return localStorage.getItem('gh_gist_token')||''; }
 function getGistId(){    return localStorage.getItem('gh_gist_id')||''; }
@@ -2865,7 +2866,7 @@ async function saveToGist(){
   const body = {
     description: '投資組合管理工具資料',
     public: false,
-    files: { [GIST_FILENAME]: { content: JSON.stringify(state, null, 2) } }
+    files: { [gistFile()]: { content: JSON.stringify(state, null, 2) } }
   };
   try {
     const gistId = getGistId();
@@ -2905,7 +2906,7 @@ async function loadFromGist(){
     });
     if(!res.ok) throw new Error('HTTP '+res.status);
     const data = await res.json();
-    const content = data.files[GIST_FILENAME]?.content;
+    const content = data.files[gistFile()]?.content;
     if(!content) throw new Error('找不到資料檔案');
     const s = JSON.parse(content);
     if(!s.assets||!s.assets.length) throw new Error('資料格式錯誤');
@@ -2923,7 +2924,7 @@ async function loadFromGist(){
           if(s.withdraw) document.getElementById('withdrawInput').value=s.withdraw;
           if(s.exchangeRate) exchangeRate = Number(s.exchangeRate)||32;
           saveData();
-          buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
+          buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc(true);
         } finally { _applyingRemote = false; }
         showCloudStatus('☁ 雲端資料已載入 ✓', 'var(--green)');
       }
@@ -3023,7 +3024,7 @@ async function autoSyncToGist(useKeepalive){
   const body = {
     description: '投資組合管理工具資料',
     public: false,
-    files: { [GIST_FILENAME]: { content: JSON.stringify(state) } }
+    files: { [gistFile()]: { content: JSON.stringify(state) } }
   };
   // Skip if rate-limited
   if(Date.now() < _rateLimitedUntil){ showCloudIndicator('error'); return; }
@@ -3094,16 +3095,24 @@ async function autoLoadFromGist(){
     if(res.status === 404){ localStorage.removeItem('gh_gist_id'); return; }
     if(!res.ok) return;
     const data = await res.json();
-    const content = data.files[GIST_FILENAME]?.content;
+    const content = data.files[gistFile()]?.content;
     if(!content) return;
     const s = JSON.parse(content);
     if(!s.assets||!s.assets.length) return;
-    // Compare timestamps: only load if Gist is newer
-    const localSavedAt = Number(localStorage.getItem('gh_gist_savedAt'))||0;
     const gistSavedAt = s.savedAt||0;
-    if(gistSavedAt <= localSavedAt) {
+    // 內容比對：雲端與本機相同 → 不用動
+    const remoteFp = syncFingerprint(s.groups||[], s.assets||[], Number(s.exchangeRate)||32, s.withdraw);
+    const localFp  = syncFingerprint(groups, assets, exchangeRate, document.getElementById('withdrawInput').value);
+    if(remoteFp === localFp){
+      localStorage.setItem('gh_gist_savedAt', String(gistSavedAt));
       showCloudIndicator('ok');
-      return; // Local is already up to date
+      return;
+    }
+    // 內容不同 → 用時間戳決定方向：本機較新就改推本機上雲
+    const localSavedAt = Number(localStorage.getItem('gh_gist_savedAt'))||0;
+    if(gistSavedAt <= localSavedAt){
+      scheduleGistSync(); // 本機離線編輯過 → 推上雲
+      return;
     }
     // Gist is newer — load silently（旗標防止回傳上雲造成乒乓迴圈）
     _applyingRemote = true;
@@ -3115,7 +3124,7 @@ async function autoLoadFromGist(){
       if(s.exchangeRate) exchangeRate = Number(s.exchangeRate)||32;
       localStorage.setItem(accountStoreKey(), JSON.stringify({...s, savedAt:s.savedAt}));
       localStorage.setItem('gh_gist_savedAt', String(gistSavedAt));
-      buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
+      buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc(true);
     } finally { _applyingRemote = false; }
     showCloudIndicator('loaded');
   } catch(e){
@@ -3171,7 +3180,7 @@ async function checkGistForUpdates(){
     if(!res.ok) return;
     _gistEtag = res.headers.get('ETag') || _gistEtag;
     const data = await res.json();
-    const content = data.files[GIST_FILENAME]?.content;
+    const content = data.files[gistFile()]?.content;
     if(!content) return;
     const s = JSON.parse(content);
     const gistSavedAt = s.savedAt||0;
@@ -3191,7 +3200,7 @@ async function checkGistForUpdates(){
       if(s.exchangeRate) exchangeRate=Number(s.exchangeRate)||32;
       localStorage.setItem(accountStoreKey(),JSON.stringify({...s,savedAt:s.savedAt}));
       localStorage.setItem('gh_gist_savedAt',String(gistSavedAt));
-      buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
+      buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc(true);
     } finally { _applyingRemote = false; }
     showCloudIndicator('loaded');
   } catch(e){}
