@@ -302,7 +302,7 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
 
 <div class="header">
   <div class="header-top">
-    <span class="app-title">Portfolio <span style="opacity:.45;letter-spacing:1px">v2026.06.10c</span></span>
+    <span class="app-title">Portfolio <span style="opacity:.45;letter-spacing:1px">v2026.06.10d</span></span>
     
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -2753,23 +2753,27 @@ async function fetchRate(){
 
 // ── Find portfolio Gist by searching user's gists ────────────────────────────
 // Always picks the OLDEST matching gist so all devices converge on the same one.
+let _lastGistError = '';
 async function findPortfolioGist(token){
+  _lastGistError = '';
   try {
     const res = await fetch('https://api.github.com/gists?per_page=100', {
       headers: { Authorization:'Bearer '+token },
       cache:'no-store'
     });
-    if(!res.ok) return null;
+    if(res.status === 401){ _lastGistError = 'Token 無效（401）— 請重新輸入'; return null; }
+    if(res.status === 403){ _lastGistError = 'API 速率限制（403）— 請稍後再試'; return null; }
+    if(!res.ok){ _lastGistError = 'GitHub 回應錯誤 '+res.status; return null; }
     const gists = await res.json();
     // Find ALL gists containing our portfolio file
     const matches = gists.filter(g => g.files && g.files[GIST_FILENAME]);
-    if(!matches.length) return null;
+    if(!matches.length){ _lastGistError = '帳號內沒有 portfolio 資料檔'; return null; }
     // Sort by updated date descending → pick the most recently updated (has latest data)
     matches.sort((a,b)=> new Date(b.updated_at) - new Date(a.updated_at));
     const canonical = matches[0];
     localStorage.setItem('gh_gist_id', canonical.id);
     return canonical.id;
-  } catch(e){ return null; }
+  } catch(e){ _lastGistError = '網路錯誤：'+((e&&e.message)||e); return null; }
 }
 
 // Re-link to the canonical (oldest) gist — clears local id and re-resolves
@@ -2784,7 +2788,7 @@ async function relinkCloud(){
     localStorage.removeItem('gh_gist_savedAt'); // force reload
     await loadFromGist();
   } else {
-    showCloudStatus('⚠ 找不到雲端資料', 'var(--gold)');
+    showCloudStatus('⚠ '+(_lastGistError||'找不到雲端資料'), 'var(--gold)');
   }
 }
 
@@ -2908,7 +2912,7 @@ async function loadFromGist(){
   if(!gistId){
     showCloudStatus('🔍 搜尋雲端資料…', 'var(--text2)');
     gistId = await findPortfolioGist(token);
-    if(!gistId){ showCloudStatus('⚠ 找不到雲端資料，請先在另一台儲存', 'var(--gold)'); return; }
+    if(!gistId){ showCloudStatus('⚠ '+(_lastGistError||'找不到雲端資料，請先在另一台儲存'), 'var(--gold)'); return; }
   }
   showCloudStatus('⬇ 讀取中…', 'var(--text2)');
   try {
