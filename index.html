@@ -3,6 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Portfolio">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="apple-touch-icon" href="icon-180.png">
 <title>資產配置管理器</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
@@ -295,7 +302,7 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
 
 <div class="header">
   <div class="header-top">
-    <span class="app-title">Portfolio <span style="opacity:.45;letter-spacing:1px">v2026.06.10b</span></span>
+    <span class="app-title">Portfolio <span style="opacity:.45;letter-spacing:1px">v2026.06.10c</span></span>
     
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -1855,7 +1862,11 @@ function autoFixGroupSum(){
 
 // ── Storage ───────────────────────────────────────────────────────────────────
 // ── Account management ────────────────────────────────────────────────────────
-let currentAccount = localStorage.getItem('currentAccount') || 'A';
+let // ── PWA: 註冊 service worker（離線可開、秒開；失敗不影響任何功能）──
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+currentAccount = localStorage.getItem('currentAccount') || 'A';
 
 function accountStoreKey(acct){
   return 'portfolio_v2_' + (acct||currentAccount);
@@ -3252,6 +3263,10 @@ document.addEventListener('keydown', e=>{
 });
 
 currentAccount = localStorage.getItem('currentAccount') || 'A';
+// ── PWA: 註冊 service worker（離線可開、秒開；失敗不影響任何功能）──
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
 const savedAt = loadData();
 autoLoadFromGist(); // Auto-load from cloud if new
 startGistPollTimer(); // Poll for Gist updates
