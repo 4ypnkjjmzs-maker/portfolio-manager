@@ -286,6 +286,10 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
 }
 .util-card.dragging{ opacity:0.5; }
 .util-card.drag-over{ outline:2px solid var(--gold); }
+/* 桌機瀏覽器的數字輸入框上下箭頭會撐爆小輸入框 — 全域隱藏 */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+input[type=number]{ -moz-appearance:textfield; appearance:textfield; }
 </style>
 </head>
 <body>
@@ -3018,9 +3022,9 @@ function renderDipBuy(force){
         +'<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)">'
           +'<span style="font-family:\'Space Mono\',monospace;font-weight:700;color:var(--muted)">第'+(i+1)+'階</span>'
           +'回檔 −<input type="number" inputmode="decimal" value="'+t.dd+'" onchange="dipSetTier('+i+',\'dd\',this.value)"'
-            +' style="width:44px;background:#111;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:3px 5px;font-family:\'Space Mono\',monospace;font-size:12px;text-align:center">%'
+            +' style="width:54px;background:#111;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:3px 5px;font-family:\'Space Mono\',monospace;font-size:12px;text-align:center">%'
           +'　投入 <input type="number" inputmode="decimal" value="'+t.pct+'" onchange="dipSetTier('+i+',\'pct\',this.value)"'
-            +' style="width:44px;background:#111;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:3px 5px;font-family:\'Space Mono\',monospace;font-size:12px;text-align:center">%'
+            +' style="width:54px;background:#111;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:3px 5px;font-family:\'Space Mono\',monospace;font-size:12px;text-align:center">%'
         +'</div>'
         +'<div style="display:flex;align-items:center;gap:8px">'
           +'<span style="font-family:\'Space Mono\',monospace;font-size:13px;font-weight:700;color:'+(triggered&&!t.done?'var(--red)':'var(--text2)')+'">$'+fmt(amt)+'</span>'
