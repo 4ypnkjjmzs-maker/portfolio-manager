@@ -9,20 +9,18 @@
 :root {
   --bg:#0a0a0a; --surface:#151515; --surface2:#1e1e1e; --border:#282828;
   --gold:#c9a84c; --gold2:#e8c97a; --red:#e05555; --green:#4caf82;
-  --text:#ededed; --text2:#9a9a9a; --muted:#5e5e5e; --blue:#5b8def;
+  --text:#ededed; --text2:#9a9a9a; --muted:#5e5e5e;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif;min-height:100vh;overflow-x:hidden;}
 
-/* header 與 acct-bar 隨頁面捲動；只有 .tabs 固定在頂端 */
-.header{padding:24px 20px 14px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#131313,var(--bg));box-sizing:border-box;}
+.header{padding:28px 20px 16px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#131313,var(--bg));position:sticky;top:0;z-index:100;}
 .header-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;}
 .app-title{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:4px;color:var(--text2);text-transform:uppercase;}
 .total-label{font-size:11px;color:var(--muted);}
 .total-value{font-family:'Space Mono',monospace;font-size:26px;font-weight:700;color:var(--gold2);letter-spacing:-1px;}
 
-.tabs{display:flex;border-bottom:1px solid var(--border);padding:0 20px;background:var(--bg);overflow-x:auto;-webkit-overflow-scrolling:touch;position:sticky;top:0;z-index:100;transition:transform .25s ease;will-change:transform;}
-.tabs.tabs-hidden{transform:translateY(-110%);}
+.tabs{display:flex;border-bottom:1px solid var(--border);padding:0 20px;background:var(--bg);position:sticky;top:76px;z-index:99;overflow-x:auto;}
 .tab{font-size:11px;letter-spacing:2px;color:var(--muted);padding:13px 0;margin-right:24px;cursor:pointer;border-bottom:2px solid transparent;transition:all .1s;font-family:'Space Mono',monospace;text-transform:uppercase;white-space:nowrap;flex-shrink:0;}
 .tab.active{color:var(--gold);border-bottom-color:var(--gold);}
 
@@ -293,17 +291,14 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
 <body>
 <div class="app-shell">
 
-<div class="header">
+<div class="fixed-top"><div class="header">
   <div class="header-top">
-    <span class="app-title">Portfolio <span style="opacity:.45;letter-spacing:1px">v2026.06.10b</span></span>
+    <span class="app-title">Portfolio</span>
     
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;flex:1">
-      <div class="total-value" id="totalDisplay" style="min-width:0;overflow:hidden;text-overflow:ellipsis">—</div>
-      <span id="rateDisplay" style="font-family:'Space Mono',monospace;font-size:11px;color:#5b9bd5;letter-spacing:1px;opacity:0.9;white-space:nowrap">USD/TWD —</span>
-    </div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
+    <div class="total-value" id="totalDisplay">—</div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
       <span id="cloudIndicator" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);opacity:0.35;white-space:nowrap"></span>
       <span id="saveStatus" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--green);letter-spacing:1px;opacity:0.5;transition:opacity .4s"></span>
       <span id="refreshCountdown" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--gold2);letter-spacing:1px;opacity:0.7"></span>
@@ -312,7 +307,7 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
         
         <button onclick="cloudSync()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:#9b7fd4;background:rgba(155,127,212,.12);border:1px solid rgba(155,127,212,.35);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">雲端</button>
         <button id="fetchAllBtn" onclick="fetchAllPrices()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0;color:var(--gold2);background:rgba(232,201,122,.12);border:1px solid rgba(232,201,122,.35);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">更新報價</button>
-        <button onclick="rebalanceAndSwitch()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0;color:#5b9bd5;background:rgba(91,155,213,.12);border:1px solid rgba(91,155,213,.35);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">再平衡</button>
+        <button onclick="saveData();switchTab('rebalance')" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0;color:#5b9bd5;background:rgba(91,155,213,.12);border:1px solid rgba(91,155,213,.35);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">再平衡</button>
         <button onclick="clearData()" style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap;">重置</button>
       </div>
       <input type="file" id="importInput" accept=".json" style="display:none" onchange="importJSON(event)">
@@ -328,9 +323,10 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
   <div class="tabs">
   <div class="tab active" onclick="switchTab('holdings')">持倉</div>
   <div class="tab" onclick="switchTab('rebalance')">再平衡</div>
+  <div class="tab" onclick="switchTab('dipbuy')">加碼</div>
   <div class="tab" onclick="switchTab('returns')">報酬試算</div>
   <div class="tab" onclick="switchTab('risk')">壓力測試</div>
-</div>
+</div></div><!-- end fixed-top -->
 
 <div class="content">
 
@@ -350,7 +346,6 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
       <span id="totalCost"></span><span id="totalCurrentPnl"></span>
     </div>
   </div>
-  <div id="groupBalanceAlert" style="margin-top:8px"></div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;margin-bottom:2px">
   <div class="section-label" style="margin:0">群組配置</div>
   <button onclick="toggleAllGroups()" id="toggleAllBtn"
@@ -414,7 +409,7 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
     <input class="input-field" id="withdrawInput" type="number" inputmode="numeric"
       placeholder="0" value="0" oninput="updateCalc()" style="font-size:18px;width:100%;background:var(--surface2)">
   </div>
-  <button class="calc-btn" onclick="rebalanceAndSwitch()">計算再平衡 →</button>
+  <button class="calc-btn" onclick="saveData();switchTab('rebalance')">計算再平衡 →</button>
 
   <div class="section-label" style="margin-top:20px">配置圓餅圖</div>
   <div class="action-card">
@@ -467,6 +462,12 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
   </div>
 </div>
 
+<!-- TAB: DIP BUY -->
+<div class="tab-panel" id="tab-dipbuy">
+  <div class="section-label">正二下跌加碼</div>
+  <div id="dipbuyBody"></div>
+</div>
+
 <!-- TAB 4: RISK -->
 <div class="tab-panel" id="tab-risk">
   <div class="section-label">歷史衰退年跌幅模擬</div>
@@ -485,6 +486,24 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
 
 <script>
 // ── Palette ───────────────────────────────────────────────────────────────────
+// Update slider gradient fill based on current value
+function updateSliderFill(slider){
+  if(!slider) return;
+  const min = parseFloat(slider.min)||0;
+  const max = parseFloat(slider.max)||100;
+  const val = parseFloat(slider.value)||0;
+  const ratio = (max>min) ? (val - min) / (max - min) : 0;
+  // Account for thumb width: thumb centre travels from (thumbW/2) to (trackW - thumbW/2)
+  const thumbW = 28;
+  const trackW = slider.offsetWidth || 300;
+  const centerPx = (thumbW/2) + ratio * (trackW - thumbW);
+  const pct = (centerPx / trackW * 100).toFixed(2)+'%';
+  slider.style.setProperty('--val', pct);
+}
+// Apply to all sliders on input
+document.addEventListener('input', e=>{
+  if(e.target && e.target.type==='range') updateSliderFill(e.target);
+});
 
 const PALETTE = ['#c9a84c','#4caf82','#5b9bd5','#e05555','#9b7fd4',
                  '#e8944a','#4bc4cf','#b5cc3f','#d45b8a','#7ec8a4'];
@@ -504,6 +523,15 @@ const groupOpenState = {}; // { groupId: true/false } — true = open
 const lockedInner  = {}; // { groupId: Set<assetId> }
 const lockedGroups = new Set(); // Set<groupId>
 let exchangeRate = Number(localStorage.getItem('exchangeRate')) || 32;
+// 下跌加碼階梯（門檻按2倍槓桿校準：正二回檔約為大盤2倍，太淺會過早耗盡子彈）
+function defaultDipBuy(){
+  return { anchor:null, tiers:[
+    {dd:20, pct:20, done:false},
+    {dd:35, pct:30, done:false},
+    {dd:50, pct:50, done:false}
+  ]};
+}
+let dipBuy = defaultDipBuy();
 function makeGroup(name, pct, currency) { return { id: ++gid, name, pct, currency: currency||'TWD' }; }
 function makeAsset(groupId, ticker, name, innerPct, current, rate, leverage) {
   return { id: ++uid, groupId, ticker, name,
@@ -519,7 +547,7 @@ let groups = [
 ];
 let assets = [
   makeAsset(1, 'VT',      'Vanguard全球股票',  40, 0, 10.58, 1),
-  makeAsset(1, 'QQQ',     'Invesco那斯達克100', 40, 0, 21.9,  1),
+  makeAsset(1, 'QQQ',     'Invesco那斯達克100', 40, 0,       21.9,  1),
   makeAsset(1, 'SMH',     'VanEck半導體ETF',   20, 0, 31.3,  1),
   makeAsset(2, '00631L',  '元大台灣50正2',      50, 0, 45.5,  2),
   makeAsset(2, '正二現金', '備用加碼金',         50, 0, 0,     0),
@@ -606,6 +634,17 @@ function buildGroupCards(){
           <input type="range" class="grp-slider" id="gslider-${g.id}" min="0" max="100" step="1" value="${g.pct}"
             oninput="syncGroupSlider(${g.id}, this.value)">
         </div>
+        ${g.currency==='USD' ? `
+        <div class="rate-row" id="rateRow-${g.id}">
+          <span class="rate-flag">🇺🇸</span>
+          <span class="rate-label">USD / TWD</span>
+          <span class="rate-label" style="color:#5b9bd5">1 USD =</span>
+          <input class="rate-input" id="rateInput-${g.id}" type="number"
+            inputmode="decimal" step="0.1" value="${exchangeRate}"
+            oninput="updateExchangeRate(this.value)">
+          <span class="rate-label" style="color:#5b9bd5">TWD</span>
+          <button onclick="fetchRate()" style="margin-left:auto;font-family:'Space Mono',monospace;font-size:9px;color:#5b9bd5;background:rgba(91,155,213,.1);border:1px solid rgba(91,155,213,.3);border-radius:6px;padding:3px 8px;cursor:pointer;letter-spacing:1px;">更新</button>
+        </div>` : ''}
         <!-- Mini summary row — always visible -->
         <div id="gmini-${g.id}" style="margin-bottom:10px"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
@@ -677,7 +716,7 @@ function buildAssetCards(){
           <div class="input-group">
             <div class="input-label">${isUSD ? '金額 (USD $)' : '現有金額'}</div>
             <input class="input-field" id="cur-${a.id}" type="number" inputmode="decimal"
-              value="${isUSD ? +(a.current/exchangeRate).toFixed(2) : a.current}" placeholder="0"
+              value="${isUSD ? (a.current/exchangeRate).toFixed(0) : a.current}" placeholder="0"
               style="${isUSD ? 'border-color:rgba(91,155,213,.4)' : ''}">
             ${isUSD ? `<div class="usd-hint" id="twd-${a.id}">≈ NT$ ${Math.round(a.current).toLocaleString('zh-TW')}</div>` : ''}
           </div>
@@ -721,7 +760,7 @@ function buildAssetCards(){
           <div style="flex:1;min-width:0">
             <div class="input-label">成本 ${isUSD?'(USD)':'(NT$)'}</div>
             <input class="input-field" id="cost-${a.id}" type="number" inputmode="decimal" step="any"
-              value="${a.costBasis>0 ? (isUSD ? +a.costBasis.toFixed(2) : a.costBasis) : ''}"
+              value="${a.costBasis>0 ? (isUSD ? a.costBasis.toFixed(0) : a.costBasis) : ''}"
               placeholder="0" style="padding:8px 10px;font-size:13px;${isUSD?'border-color:rgba(91,155,213,.4)':''}">
           </div>
           <div style="flex:1.2;min-width:0;padding:10px 12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)">
@@ -739,8 +778,8 @@ function buildAssetCards(){
       // Restore price and P&L display for this asset
       setTimeout(()=>{ updatePriceDisplay(a.id); updatePnlDisplay(a.id); }, 0);
 
-      // cur- and lev- : input 已涵蓋打字與步進按鈕，change 會重複觸發故移除
-        ['input'].forEach(evt => {
+      // cur- and lev- need both input+change events
+        ['input','change'].forEach(evt => {
           document.getElementById('cur-'+a.id).addEventListener(evt, function(){
             const idx = assetIndex(a.id); if(idx<0) return;
             const raw = Number(this.value)||0;
@@ -773,6 +812,12 @@ function buildAssetCards(){
             updatePnlDisplay(a.id);
             updateCalc();
           });
+          costEl.addEventListener('change', function(){
+            const idx = assetIndex(a.id); if(idx<0) return;
+            assets[idx].costBasis = Number(this.value)||0;
+            updatePnlDisplay(a.id);
+            updateCalc();
+          });
           costEl.addEventListener('blur', ()=>{ saveData(); });
         }
         const sharesEl = document.getElementById('shares-'+a.id);
@@ -789,7 +834,7 @@ function buildAssetCards(){
                 : Math.round(shares * assets[idx].lastPrice);
               const curEl = document.getElementById('cur-'+a.id);
               if(curEl && curEl !== document.activeElement)
-                curEl.value = isUSD ? +(assets[idx].current/(exchangeRate||32)).toFixed(2) : assets[idx].current;
+                curEl.value = isUSD ? (assets[idx].current/(exchangeRate||32)).toFixed(0) : assets[idx].current;
               const twdEl_s = document.getElementById('twd-'+a.id);
               if(twdEl_s) twdEl_s.textContent='≈ NT$ '+assets[idx].current.toLocaleString('zh-TW');
             }
@@ -1063,23 +1108,36 @@ function refreshHoldings(){
     renderQuickRebal(g.id, after);
   });
 
-  // ── 大類別再平衡提醒 ──────────────────────────────────────────────────────
-  renderGroupBalance();
 
 
-
-  // ── Drift data collection ──────────────────────────────────────────────────
-  const DRIFT_THRESHOLD = 10;
-  const driftData = [];
-  assets.forEach(a=>{
-    const targetPct = assetEffectivePct(a);
-    const actualPct = total>0 ? a.current/total*100 : 0;
-    const drift = actualPct - targetPct;
-    if(Math.abs(drift) >= DRIFT_THRESHOLD && targetPct > 0){
-      const gn = groups.find(x=>x.id===a.groupId);
-      driftData.push({ label: a.ticker, drift, groupName: gn?gn.name:'其他' });
-    }
+  // ── 兩層偏移監測（相對偏離 = (實際−目標)/目標）────────────────────────────
+  // 第一層：台股 : 美股 兩大群組
+  const layer1 = groups.map(g=>{
+    const gAmt = assetsInGroup(g.id).reduce((s,a)=>s+a.current,0);
+    const actual = total>0 ? gAmt/total*100 : 0;
+    const relDev = g.pct>0 ? (actual-g.pct)/g.pct*100 : 0;
+    return {g, actual, target:g.pct, relDev};
   });
+  // 第二層：各群組內部（美股只比VT/QQQ/SMH之間；台股只比00631L/正二現金之間）
+  const layer2 = [];
+  groups.forEach(g=>{
+    const ga2 = assetsInGroup(g.id);
+    const gAmt = ga2.reduce((s,a)=>s+a.current,0);
+    const innerSum2 = ga2.reduce((s,a)=>s+a.innerPct,0)||1;
+    if(gAmt<=0) return;
+    ga2.forEach(a=>{
+      const tgtInner = a.innerPct/innerSum2*100;
+      if(tgtInner<=0) return;
+      const actInner = a.current/gAmt*100;
+      layer2.push({ label:a.ticker, groupName:g.name,
+        relDev:(actInner-tgtInner)/tgtInner*100, actual:actInner, target:tgtInner });
+    });
+  });
+  // 30% 警示資料
+  const driftAlerts = [
+    ...layer1.filter(d=>Math.abs(d.relDev)>=30).map(d=>({label:d.g.name, relDev:d.relDev, layer:'第一層'})),
+    ...layer2.filter(d=>Math.abs(d.relDev)>=30).map(d=>({label:d.groupName+'·'+d.label, relDev:d.relDev, layer:'群組內'}))
+  ];
 
   // ── Update P&L ────────────────────────────────────────────────────────────
   assets.forEach(a=>updatePnlDisplay(a.id));
@@ -1092,7 +1150,6 @@ function refreshHoldings(){
     const cashAmt = assets.filter(a=>(a.leverage!=null?a.leverage:1)===0)
                           .reduce((s,a)=>s+a.current, 0);
     const totalCurExpH = assets.reduce((s,a)=>s+(a.current*(a.leverage!=null?a.leverage:1)),0);
-    const totalCurExpPct = total > 0 ? totalCurExpH/total*100 : 0;  // 整體帳戶現在曝險 %
     const totalTgtExpH = assets.reduce((s,a)=>{
       const lev = a.leverage!=null?a.leverage:1;
       return s + (afterExp * assetEffectivePct(a)/100) * lev;
@@ -1103,11 +1160,65 @@ function refreshHoldings(){
     const expBg  = totalTgtExpPct>120?'rgba(224,85,85,.05)':totalTgtExpPct>100?'rgba(201,168,76,.05)':'rgba(76,175,130,.04)';
     const expBdr = totalTgtExpPct>120?'rgba(224,85,85,.35)':totalTgtExpPct>100?'rgba(201,168,76,.35)':'rgba(76,175,130,.25)';
 
-    var driftHtml = '';
+    // ── 偏移監測顯示（兩層，相對偏離）──
+    var devClr = function(v){ var x=Math.abs(v); return x>=30?'var(--red)':x>=15?'var(--gold)':'#5b9bd5'; };
+    var devBg  = function(v){ var x=Math.abs(v); return x>=30?'rgba(224,85,85,.1)':x>=15?'rgba(201,168,76,.1)':'rgba(91,155,213,.1)'; };
+    var devBdr = function(v){ var x=Math.abs(v); return x>=30?'rgba(224,85,85,.3)':x>=15?'rgba(201,168,76,.25)':'rgba(91,155,213,.25)'; };
+
+    // 第一層：台股 : 美股
+    var l1rows = layer1.map(function(d){
+      var sign = d.relDev>=0?'+':'\u2212';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;background:rgba(255,255,255,.03);border-radius:8px;margin-bottom:5px">'
+        +'<span style="font-size:12px;font-weight:700;color:var(--text2)">'+d.g.name+'</span>'
+        +'<span style="font-family:\'Space Mono\',monospace;font-size:11px;color:var(--muted)">'+d.actual.toFixed(1)+'% / 目標 '+d.target+'%</span>'
+        +'<span style="font-family:\'Space Mono\',monospace;font-size:11px;font-weight:700;color:'+devClr(d.relDev)+';background:'+devBg(d.relDev)+';border:1px solid '+devBdr(d.relDev)+';border-radius:6px;padding:2px 8px;white-space:nowrap">'+sign+Math.abs(d.relDev).toFixed(1)+'%</span>'
+        +'</div>';
+    }).join('');
+
+    // 第二層：群組內部
+    var byG = {};
+    layer2.forEach(function(d){ (byG[d.groupName]=byG[d.groupName]||[]).push(d); });
+    var l2html = '';
+    Object.keys(byG).forEach(function(gn){
+      var grpClr = gn.indexOf('美')>=0 ? '#5b9bd5' : 'var(--gold)';
+      var badges = byG[gn].map(function(d){
+        var sign = d.relDev>=0?'+':'\u2212';
+        return '<span style="display:inline-flex;align-items:center;gap:3px;background:'+devBg(d.relDev)+';border:1px solid '+devBdr(d.relDev)+';border-radius:6px;padding:3px 8px;margin:0 4px 3px 0;white-space:nowrap">'
+          +'<span style="font-size:10px;font-weight:700;color:'+devClr(d.relDev)+'">'+d.label+'</span>'
+          +'<span style="font-size:10px;color:'+devClr(d.relDev)+'">'+sign+Math.abs(d.relDev).toFixed(1)+'%</span>'
+          +'</span>';
+      }).join('');
+      l2html += '<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:3px">'
+        +'<span style="color:'+grpClr+';font-size:10px;font-weight:700;width:28px;flex-shrink:0;padding-top:5px">'+gn+'</span>'
+        +'<div style="flex:1;display:flex;flex-wrap:wrap">'+badges+'</div>'
+        +'</div>';
+    });
+
+    var driftHtml = '<div style="padding:10px 16px 12px;border-top:1px solid rgba(255,255,255,.06)">'
+      +'<div style="font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:7px">偏移監測（相對偏離）</div>'
+      +'<div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:5px">第一層 台股 : 美股</div>'
+      +l1rows
+      +'<div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin:8px 0 5px">第二層 群組內部</div>'
+      +l2html
+      +'</div>';
+
+    // 🚨 30% 警示橫幅
+    var alertHtml = '';
+    if(driftAlerts.length){
+      var items = driftAlerts.map(function(d){
+        var sign = d.relDev>=0?'+':'\u2212';
+        return d.layer+' '+d.label+' '+sign+Math.abs(d.relDev).toFixed(1)+'%';
+      }).join('\u3001');
+      alertHtml = '<div style="background:rgba(224,85,85,.14);border-bottom:1px solid rgba(224,85,85,.4);padding:10px 16px;display:flex;align-items:center;gap:8px">'
+        +'<span style="font-size:15px">\ud83d\udea8</span>'
+        +'<div><div style="font-size:12px;font-weight:700;color:var(--red)">偏移超過 30%\uff0c建議再平衡</div>'
+        +'<div style="font-size:11px;color:var(--red);opacity:.85;margin-top:2px">'+items+'</div></div>'
+        +'</div>';
+    }
 
     expSum.style.border = '1px solid '+expBdr;
-    expSum.innerHTML =
-      '<div style="background:'+expBg+';padding:14px 16px 12px">'
+    expSum.innerHTML = alertHtml
+      +'<div style="background:'+expBg+';padding:14px 16px 12px">'
         +'<div style="margin-bottom:12px">'
           +'<div style="font-size:9px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-bottom:4px">總資產</div>'
           +'<div style="font-family:\'Space Mono\',monospace;font-size:26px;font-weight:700;color:var(--gold2);letter-spacing:-1px;line-height:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">$'+fmt(total)+'</div>'
@@ -1122,8 +1233,21 @@ function refreshHoldings(){
             +'<div style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:var(--green)">'+cashPct.toFixed(0)+'%</div>'
           +'</div>'
         +'</div>'
-        +buildDriftMonitor(total)
-      +'</div>';
+        +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">'
+          +'<span style="font-size:11px;color:var(--muted);letter-spacing:2px">總曝險</span>'
+          +'<span style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:'+expClr+'">'+totalTgtExpPct.toFixed(1)+'%</span>'
+        +'</div>'
+        +'<div style="position:relative;height:4px;background:rgba(255,255,255,.07);border-radius:2px;margin-bottom:4px">'
+          +'<div style="position:absolute;left:50%;top:-5px;width:1px;height:14px;background:rgba(255,255,255,.18)"></div>'
+          +'<div style="width:'+Math.min(barW/2,100)+'%;height:100%;border-radius:2px;background:'+expClr+'"></div>'
+        +'</div>'
+        +'<div style="display:flex;justify-content:space-between">'
+          +'<span style="font-size:9px;color:rgba(255,255,255,.18)">0%</span>'
+          +'<span style="font-size:9px;color:rgba(255,255,255,.18)">100%</span>'
+          +'<span style="font-size:9px;color:rgba(255,255,255,.18)">200%</span>'
+        +'</div>'
+      +'</div>'
+      +driftHtml;
   }
 
   refreshDonut();
@@ -1477,6 +1601,7 @@ const CRISIS_YEARS = [
 const SEV_COLOR = { severe:'var(--red)', moderate:'var(--gold)', mild:'#5b9bd5' };
 
 function calcPortfolioDD(ddMap){
+  const w=withdraw(); const after=totalCurrent()-w;
   let portDD=0;
   assets.forEach(a=>{
     const assetDD=ddMap&&a.ticker?ddMap[a.ticker]:null;
@@ -1792,10 +1917,11 @@ function switchTab(name){
       return; // block navigation
     }
   }
-  const names=['holdings','rebalance','returns','risk'];
+  const names=['holdings','rebalance','dipbuy','returns','risk'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',names[i]===name));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+name));
   if(name==='risk') renderRisk();
+  if(name==='dipbuy') renderDipBuy();
   // Scroll to top instantly when switching tabs (smooth scroll felt laggy)
   window.scrollTo(0, 0);
   document.documentElement.scrollTop = 0;
@@ -1894,19 +2020,47 @@ function loadData(){
     });
     const savedRate = s.exchangeRate||localStorage.getItem('exchangeRate');
     if(savedRate) exchangeRate = Number(savedRate)||32;
+    dipBuy = s.dipBuy || defaultDipBuy();
     return s.savedAt;
   } catch(e){ return false; }
+}
+
+function editAccountName(){
+  const existing = document.getElementById('acctNameModal');
+  if(existing) existing.remove();
+  const cur = getAccountName(currentAccount);
+  const modal = document.createElement('div');
+  modal.id = 'acctNameModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;';
+  modal.innerHTML =
+    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-width:320px;">'
+      +'<div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px">重新命名「'+cur+'」</div>'
+      +'<input id="acctNameModalInput" type="text" maxlength="12" value="'+cur.replace(/"/g,'&quot;')+'"'
+        +' style="width:100%;box-sizing:border-box;background:#111;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:15px;margin-bottom:14px">'
+      +'<div style="display:flex;gap:10px">'
+        +'<button id="acctNameCancel" style="flex:1;background:none;color:var(--muted);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:12px;cursor:pointer">取消</button>'
+        +'<button id="acctNameSave" style="flex:1;background:var(--gold);color:#0a0a0a;border:none;border-radius:10px;padding:12px;font-size:12px;font-weight:700;cursor:pointer">儲存</button>'
+      +'</div>'
+    +'</div>';
+  document.body.appendChild(modal);
+  const inp = document.getElementById('acctNameModalInput');
+  setTimeout(()=>{ inp.focus(); inp.select(); }, 80);
+  const save = ()=>{
+    const v = inp.value.trim();
+    if(v) localStorage.setItem('acctName_'+currentAccount, v);
+    modal.remove();
+    updateAccountBar();
+  };
+  document.getElementById('acctNameSave').onclick = save;
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter') save(); });
+  document.getElementById('acctNameCancel').onclick = ()=> modal.remove();
+  modal.onclick = (e)=>{ if(e.target===modal) modal.remove(); };
 }
 
 function switchAccount(acct){
   if(acct === currentAccount) return;
   saveData();
-  flushGistSync(); // 切帳前把待同步的變更送出
   currentAccount = acct;
-  // 重置同步狀態：指紋與 ETag 屬於上一個帳戶
-  _lastSyncFingerprint = '';
-  _gistEtag = null;
-  clearTimeout(_gistSyncTimer); _gistSyncTimer = null;
   localStorage.setItem('currentAccount', acct);
   uid=0; gid=0;
   groups=[makeGroup('美股',50,'USD'),makeGroup('台股',50,'TWD')];
@@ -1918,6 +2072,7 @@ function switchAccount(acct){
     makeAsset(2,'正二現金','備用加碼金',50,0,0,0),
   ];
   document.getElementById('withdrawInput').value=0;
+  dipBuy = defaultDipBuy();
   loadData();
   buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
   updateAccountBar(); startAutoRefresh(); setTimeout(initSliderFills, 50);
@@ -1934,10 +2089,11 @@ function getYahooTicker(ticker){
   return ticker;
 }
 
-function applyPrice(id, price){
+function applyPrice(id, price, quoteTime){
   const idx = assetIndex(id); if(idx<0) return;
   assets[idx].lastPrice = price;
   assets[idx].lastPriceAt = Date.now();
+  assets[idx].quoteAt = quoteTime ? quoteTime*1000 : null;
   const a = assets[idx];
   const g = groups.find(x=>x.id===a.groupId);
   const isUSD = g && g.currency==='USD';
@@ -1947,12 +2103,12 @@ function applyPrice(id, price){
       : Math.round(a.shares * price);
     const curEl = document.getElementById('cur-'+id);
     if(curEl && curEl!==document.activeElement)
-      curEl.value = isUSD ? +(assets[idx].current/(exchangeRate||32)).toFixed(2) : assets[idx].current;
+      curEl.value = isUSD ? (assets[idx].current/(exchangeRate||32)).toFixed(0) : assets[idx].current;
     const twdEl = document.getElementById('twd-'+id);
     if(twdEl) twdEl.textContent='≈ NT$ '+assets[idx].current.toLocaleString('zh-TW');
   }
   updatePriceDisplay(id);
-  updateCalc();
+  updateCalc(); saveData();
 }
 
 function showPriceModal(id){
@@ -2001,8 +2157,25 @@ async function tryAutoFetch(id){
   const idx = assetIndex(id); if(idx<0) return;
   const a = assets[idx];
   const sym = getYahooTicker(a.ticker);
-  const found = await yahooFetchPrice(sym);
-  if(found){ applyPrice(id, found); }
+  const endpoints = [
+    'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
+    'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
+  ];
+  const proxies = ['', 'https://corsproxy.io/?', 'https://api.allorigins.win/get?url='];
+  let found = null, foundT = null;
+  outer: for(const ep of endpoints){
+    for(const px of proxies){
+      try {
+        const bust2='&_t='+Date.now(); const ep2b=ep+(ep.includes('?')?bust2:bust2.replace('&','?')); const url = px ? px+encodeURIComponent(ep2b) : ep2b;
+        const res = await fetch(url, {signal:AbortSignal.timeout(6000), cache:'no-store'});
+        const raw = await res.json();
+        const body = raw.contents ? JSON.parse(raw.contents) : raw;
+        const p = body?.chart?.result?.[0]?.meta?.regularMarketPrice;
+        if(p){ found=p; foundT=body?.chart?.result?.[0]?.meta?.regularMarketTime||null; break outer; }
+      } catch(e){}
+    }
+  }
+  if(found){ applyPrice(id, found, foundT); }
   else { alert('自動抓取失敗，請手動輸入'); showPriceModal(id); }
 }
 
@@ -2014,16 +2187,34 @@ async function fetchAllPrices(){
   // Auto-update exchange rate first
   await fetchRate();
   let updated=0, failed=[];
-  // 序列抓取：每檔間隔 400ms，共用成功 proxy
-  for(const a of investable){
+  await Promise.all(investable.map(async a=>{
     const priceBtn = document.getElementById('pricebtn-'+a.id);
     if(priceBtn){ priceBtn.textContent='⏳'; priceBtn.disabled=true; }
-    const found = await yahooFetchPrice(getYahooTicker(a.ticker));
+    const sym = getYahooTicker(a.ticker);
+    const endpoints = [
+      'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
+      'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
+    ];
+    const proxies = ['', 'https://corsproxy.io/?', 'https://api.allorigins.win/get?url='];
+    let found = null, foundT = null;
+    outer: for(const ep of endpoints){
+      for(const px of proxies){
+        try {
+          const bust2='&_t='+Date.now(); const ep2b=ep+(ep.includes('?')?bust2:bust2.replace('&','?')); const url = px ? px+encodeURIComponent(ep2b) : ep2b;
+          const res = await fetch(url,{signal:AbortSignal.timeout(6000),cache:'no-store'});
+          const raw = await res.json();
+          const body = raw.contents ? JSON.parse(raw.contents) : raw;
+          const p = body?.chart?.result?.[0]?.meta?.regularMarketPrice;
+          if(p){ found=p; foundT=body?.chart?.result?.[0]?.meta?.regularMarketTime||null; break outer; }
+        } catch(e){}
+      }
+    }
     if(priceBtn){ priceBtn.textContent='↻'; priceBtn.disabled=false; }
     if(found){
       const idx2 = assetIndex(a.id); if(idx2<0) return;
       assets[idx2].lastPrice = found;
       assets[idx2].lastPriceAt = Date.now();
+      assets[idx2].quoteAt = foundT ? foundT*1000 : null;
       const g = groups.find(x=>x.id===a.groupId);
       const isUSD = g && g.currency==='USD';
       if((a.shares||0)>0){
@@ -2032,18 +2223,14 @@ async function fetchAllPrices(){
           : Math.round(a.shares * found);
         const curEl = document.getElementById('cur-'+a.id);
         if(curEl && curEl!==document.activeElement)
-          curEl.value = isUSD ? +(assets[idx2].current/(exchangeRate||32)).toFixed(2) : assets[idx2].current;
+          curEl.value = isUSD ? (assets[idx2].current/(exchangeRate||32)).toFixed(0) : assets[idx2].current;
         const twdEl = document.getElementById('twd-'+a.id);
         if(twdEl) twdEl.textContent='≈ NT$ '+assets[idx2].current.toLocaleString('zh-TW');
       }
       updatePriceDisplay(a.id);
       updated++;
     } else { failed.push(a.ticker); }
-    await _sleep(400);
-  }
-  // 手動更新成功 → 解除 backoff；整輪失敗 → 啟動 10 分鐘 backoff
-  if(updated > 0){ _yahooBackoffUntil = 0; }
-  else if(investable.length > 0){ _yahooBackoffUntil = Date.now() + 10*60*1000; }
+  }));
   if(btn){
     const now=new Date();
     const ts=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
@@ -2060,16 +2247,10 @@ async function fetchAllPrices(){
   }
   nextRefreshAt = Date.now() + AUTO_REFRESH_MS;
   updateCountdown();
-  if(updated>0){ updateCalc(); }
+  if(updated>0){ updateCalc(); saveData(); }
 }
 
 async function silentFetchAll(){
-  // 整輪失敗 backoff：暫停期間跳過自動更新
-  if(Date.now() < _yahooBackoffUntil){
-    nextRefreshAt = Date.now() + AUTO_REFRESH_MS;
-    updateCountdown();
-    return;
-  }
   // Auto-update exchange rate
   await fetchRate();
   const investable = assets.filter(a=>(a.leverage!=null?a.leverage:1)!==0 && (a.shares||0)>0);
@@ -2077,13 +2258,31 @@ async function silentFetchAll(){
   const el = document.getElementById('refreshCountdown');
   if(el) el.textContent='↻ 更新中…';
   let updated = 0;
-  // 序列抓取：每檔間隔 400ms，避免並發轟炸 proxy
-  for(const a of investable){
-    const found = await yahooFetchPrice(getYahooTicker(a.ticker));
+  await Promise.all(investable.map(async a=>{
+    const sym = getYahooTicker(a.ticker);
+    const endpoints = [
+      'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
+      'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
+    ];
+    const proxies = ['', 'https://corsproxy.io/?', 'https://api.allorigins.win/get?url='];
+    let found = null, foundT = null;
+    outer: for(const ep of endpoints){
+      for(const px of proxies){
+        try {
+          const bust2='&_t='+Date.now(); const ep2b=ep+(ep.includes('?')?bust2:bust2.replace('&','?')); const url = px ? px+encodeURIComponent(ep2b) : ep2b;
+          const res = await fetch(url, {signal: AbortSignal.timeout(6000), cache:'no-store'});
+          const raw = await res.json();
+          const body = raw.contents ? JSON.parse(raw.contents) : raw;
+          const p = body?.chart?.result?.[0]?.meta?.regularMarketPrice;
+          if(p){ found=p; foundT=body?.chart?.result?.[0]?.meta?.regularMarketTime||null; break outer; }
+        } catch(e){}
+      }
+    }
     if(found){
       const idx = assetIndex(a.id); if(idx<0) return;
       assets[idx].lastPrice = found;
       assets[idx].lastPriceAt = Date.now();
+      assets[idx].quoteAt = foundT ? foundT*1000 : null;
       const g = groups.find(x=>x.id===a.groupId);
       const isUSD = g && g.currency==='USD';
       assets[idx].current = isUSD
@@ -2091,20 +2290,14 @@ async function silentFetchAll(){
         : Math.round(a.shares * found);
       const curEl = document.getElementById('cur-'+a.id);
       if(curEl && curEl !== document.activeElement)
-        curEl.value = isUSD ? +(assets[idx].current/(exchangeRate||32)).toFixed(2) : assets[idx].current;
+        curEl.value = isUSD ? (assets[idx].current/(exchangeRate||32)).toFixed(0) : assets[idx].current;
       const twdEl = document.getElementById('twd-'+a.id);
       if(twdEl) twdEl.textContent='≈ NT$ '+assets[idx].current.toLocaleString('zh-TW');
       updatePriceDisplay(a.id);
       updated++;
     }
-    await _sleep(400);
-  }
-  // 整輪全部失敗 → 暫停自動更新 10 分鐘
-  if(updated === 0 && investable.length > 0){
-    _yahooBackoffUntil = Date.now() + 10*60*1000;
-    if(el) el.textContent='⏸ 來源暫時無回應';
-  }
-  if(updated > 0){ _yahooBackoffUntil = 0; updateCalc(); }
+  }));
+  if(updated > 0){ updateCalc(); saveData(); }
   const now = new Date();
   const ts = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
   const saveEl = document.getElementById('saveStatus');
@@ -2126,6 +2319,16 @@ function updateCountdown(){
   const secs = Math.floor((ms % 60000) / 1000);
   if(ms <= 0){ el.textContent = '更新中…'; }
   else { el.textContent = '下次更新 '+mins+':'+String(secs).padStart(2,'0'); }
+}
+
+function shareJSON(){
+  const state={ version:2, groups, assets, exchangeRate,
+    withdraw: document.getElementById('withdrawInput').value,
+    uid, gid, savedAt: Date.now() };
+  const text = JSON.stringify(state, null, 2);
+  if(navigator.share){
+    navigator.share({ title:'投資組合資料', text, files:[] }).catch(()=> showExportModal(text));
+  } else { showExportModal(text); }
 }
 
 function showExportModal(text){
@@ -2227,32 +2430,18 @@ document.addEventListener('input',e=>{
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 function adjustContentPadding(){
-  // 清除舊版本可能殘留的 paddingTop（兼容性）
-  const content=document.querySelector('.content');
+  const fixed=document.querySelector('.fixed-top');
   const shell=document.querySelector('.app-shell');
-  if(content) content.style.paddingTop='';
-  if(shell) shell.style.paddingTop='';
+  if(fixed&&shell) shell.style.paddingTop=fixed.offsetHeight+'px';
 }
 
 // ── updateCalc ────────────────────────────────────────────────────────────────
-let _calcRaf = null;
-function updateCalc(immediate){
-  // rAF 節流：滑桿連續拖動時一幀最多重算一次
-  if(immediate === true){
-    if(_calcRaf){ cancelAnimationFrame(_calcRaf); _calcRaf = null; }
-    _updateCalcNow();
-    return;
-  }
-  if(_calcRaf) return;
-  _calcRaf = requestAnimationFrame(()=>{ _calcRaf = null; _updateCalcNow(); });
-}
-function _updateCalcNow(){
+function updateCalc(){
   refreshHoldings();
   refreshGroupMini();
   refreshRebalance();
   refreshReturns();
-  const _rd=document.getElementById('rateDisplay');
-  if(_rd) _rd.textContent='USD/TWD '+(exchangeRate||32).toFixed(2);
+  renderDipBuy();
   saveData();
 }
 
@@ -2280,11 +2469,14 @@ function startAutoRefresh(){
 }
 
 // ── Exchange rate ──────────────────────────────────────────────────────────────
-// 點再平衡時：先抓最新匯率再切頁
-async function rebalanceAndSwitch(){
-  saveData();
-  switchTab('rebalance');
-  try { await fetchRate(); updateCalc(); } catch(e){}
+function updateExchangeRate(){
+  const inp=document.getElementById('rateInput');
+  if(!inp) return;
+  const newRate=parseFloat(inp.value);
+  if(!newRate||newRate<=0){ inp.style.borderColor='var(--red)'; return; }
+  inp.style.borderColor='';
+  exchangeRate=newRate;
+  updateCalc();
 }
 
 // ── Price display ──────────────────────────────────────────────────────────────
@@ -2296,8 +2488,9 @@ function updatePriceDisplay(id){
   const g=groups.find(x=>x.id===a.groupId);
   const isUSD=g&&g.currency==='USD';
   if(a.lastPrice){
-    const now=new Date(a.lastPriceAt||Date.now());
-    const ts=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    const qt=a.quoteAt||a.lastPriceAt||Date.now();
+    const now=new Date(qt);
+    const ts=(a.quoteAt?'報價 ':'')+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
     const priceStr=isUSD?'$ '+a.lastPrice.toFixed(2)+' USD ':a.lastPrice.toFixed(2)+' TWD ';
     el.innerHTML='<span style="font-family:\'Space Mono\',monospace;font-size:14px;font-weight:700;color:var(--gold2)">'+priceStr+'</span>'
       +'<span style="font-size:10px;color:var(--muted)">'+ts+'</span>';
@@ -2343,20 +2536,14 @@ function refreshGroupMini(){
     const ga=assetsInGroup(g.id);
     const total=totalCurrent();
     const after=Math.max(0,total-withdraw());
-    // ── 整體帳號曝險（所有組別合計）─────────────────────────────────────────
-    const totCurExpAll = assets.reduce((s,a)=>s+a.current*(a.leverage!=null?a.leverage:1),0);
-    const acctExpPct   = total>0 ? totCurExpAll/total*100 : 0;
-    // 調整後：所有組別按目前 slider 設定再平衡後的整體曝險（兩卡一致）
-    const projTotalExp = assets.reduce((s,a)=>{
-      const effPct=assetEffectivePct(a); const lev=a.leverage!=null?a.leverage:1;
+    const curExp=ga.reduce((s,a)=>s+a.current*(a.leverage!=null?a.leverage:1),0);
+    const curExpPct=total>0?(curExp/total*100).toFixed(1):0;
+    const tgtExp=ga.reduce((s,a)=>{
+      const effPct=assetEffectivePct(a);
+      const lev=a.leverage!=null?a.leverage:1;
       return s+(after*effPct/100)*lev;
     },0);
-    const projExpPct   = after>0 ? projTotalExp/after*100 : acctExpPct;
-    const pClr = projExpPct>120?'var(--red)':projExpPct>105?'var(--gold)':'var(--green)';
-    const eBg  = projExpPct>120?'rgba(224,85,85,.07)':projExpPct>105?'rgba(201,168,76,.07)':'rgba(76,175,130,.05)';
-    const eBdr = projExpPct>120?'rgba(224,85,85,.28)':projExpPct>105?'rgba(201,168,76,.28)':'rgba(76,175,130,.22)';
-    const curFill  = Math.min(acctExpPct/200*100, 100).toFixed(2);
-    const projFill = Math.min(projExpPct/200*100, 100).toFixed(2);
+    const tgtExpPct=after>0?(tgtExp/after*100).toFixed(1):0;
     const innerSum = ga.reduce((s,x)=>s+x.innerPct,0)||1;
     // Legend columns: glowing dot + ticker + pct
     const cols=ga.map((a,i)=>{
@@ -2381,31 +2568,12 @@ function refreshGroupMini(){
     const bar = '<div style="display:flex;width:100%;height:14px;margin-bottom:16px">'+segs+'</div>';
     el.innerHTML='<div style="display:flex;gap:4px;justify-content:center;margin-bottom:12px">'+cols+'</div>'
       +bar
-      +'<div style="margin-top:14px;padding:12px 14px 10px;background:'+eBg+';border-radius:12px;border:1px solid '+eBdr+'">'
-        +'<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px">'
-          +'<span style="font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase">整體曝險</span>'
-          +'<div style="display:flex;align-items:flex-end;gap:10px">'
-            +'<div style="text-align:center">'
-              +'<div style="font-size:8px;color:var(--muted);margin-bottom:2px">現在</div>'
-              +'<div style="font-family:\'Space Mono\',monospace;font-size:14px;font-weight:600;color:var(--text2);opacity:.65">'+acctExpPct.toFixed(1)+'%</div>'
-            +'</div>'
-            +'<div style="font-size:13px;color:'+pClr+';opacity:.8;padding-bottom:2px">→</div>'
-            +'<div style="text-align:center">'
-              +'<div style="font-size:8px;color:var(--muted);margin-bottom:2px">調整後</div>'
-              +'<div style="font-family:\'Space Mono\',monospace;font-size:22px;font-weight:700;color:'+pClr+';line-height:1">'+projExpPct.toFixed(1)+'<span style="font-size:11px;font-weight:400;opacity:.5">%</span></div>'
-            +'</div>'
-          +'</div>'
-        +'</div>'
-        +'<div style="position:relative;height:5px;background:rgba(255,255,255,.06);border-radius:3px;margin-bottom:5px">'
-          +'<div style="position:absolute;left:50%;top:-3px;width:1px;height:11px;background:rgba(255,255,255,.22)"></div>'
-          +'<div style="position:absolute;left:0;top:0;height:100%;border-radius:3px;width:'+projFill+'%;background:'+pClr+';box-shadow:0 0 6px '+pClr+'55"></div>'
-          +'<div style="position:absolute;left:'+curFill+'%;top:-2px;width:2px;height:9px;background:rgba(255,255,255,.4);border-radius:1px;transform:translateX(-50%)"></div>'
-        +'</div>'
-        +'<div style="display:flex;justify-content:space-between">'
-          +'<span style="font-size:8px;color:rgba(255,255,255,.15)">0%</span>'
-          +'<span style="font-size:8px;color:rgba(255,255,255,.28)">100%</span>'
-          +'<span style="font-size:8px;color:rgba(255,255,255,.15)">200%</span>'
-        +'</div>'
+      +'<div style="display:flex;align-items:center;justify-content:center;gap:14px;text-align:center;background:rgba(76,175,130,.06);border:1px solid rgba(76,175,130,.18);border-radius:10px;padding:10px 16px">'
+        +'<div><div style="font-size:9px;color:var(--muted);margin-bottom:3px;letter-spacing:1px">現在曝險</div>'
+          +'<div style="font-family:\'Space Mono\',monospace;font-size:19px;font-weight:700;color:var(--text2)">'+curExpPct+'%</div></div>'
+        +'<div style="color:var(--green);font-size:16px;font-weight:700">→</div>'
+        +'<div><div style="font-size:9px;color:var(--muted);margin-bottom:3px;letter-spacing:1px">再平衡後</div>'
+          +'<div style="font-family:\'Space Mono\',monospace;font-size:19px;font-weight:700;color:var(--green);text-shadow:0 0 10px rgba(76,175,130,.5)">'+tgtExpPct+'%</div></div>'
       +'</div>';
   });
 }
@@ -2414,27 +2582,27 @@ function refreshGroupMini(){
 async function fetchOneAsset(id){
   const btn=document.getElementById('pricebtn-'+id);
   if(btn){ btn.textContent='⏳'; btn.disabled=true; }
-  const idx=assetIndex(id);
-  if(idx<0){ if(btn){btn.textContent='↻';btn.disabled=false;} return; }
+  const idx=assetIndex(id); if(idx<0){ if(btn){btn.textContent='↻';btn.disabled=false;} return; }
   const a=assets[idx];
   const sym=getYahooTicker(a.ticker);
-  if(!sym){
-    if(btn){btn.textContent='⚠';btn.disabled=false; setTimeout(()=>{btn.textContent='↻';},2000);}
-    console.warn('fetchOneAsset: no ticker for', a.ticker);
-    return;
-  }
-  const found = await yahooFetchPrice(sym, 8000);
-  if(btn){btn.textContent='↻';btn.disabled=false;}
-  if(found){
-    applyPrice(id,found);
-  } else {
-    if(btn){
-      btn.textContent='⚠';
-      btn.style.color='var(--red)';
-      setTimeout(()=>{btn.textContent='↻';btn.style.color='';},2500);
+  const endpoints=['https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
+                   'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d'];
+  const proxies=['','https://corsproxy.io/?','https://api.allorigins.win/get?url='];
+  let found=null, foundT=null;
+  outer: for(const ep of endpoints){
+    for(const px of proxies){
+      try{
+        const bust='&_t='+Date.now(); const ep2=ep+(ep.includes('?')?bust:bust.replace('&','?')); const url=px?px+encodeURIComponent(ep2):ep2;
+        const res=await fetch(url,{signal:AbortSignal.timeout(6000),cache:'no-store'});
+        const raw=await res.json();
+        const body=raw.contents?JSON.parse(raw.contents):raw;
+        const p=body?.chart?.result?.[0]?.meta?.regularMarketPrice;
+        if(p){found=p;foundT=body?.chart?.result?.[0]?.meta?.regularMarketTime||null;break outer;}
+      }catch(e){}
     }
-    console.warn('fetchOneAsset failed for', a.ticker, 'sym=', sym);
   }
+  if(btn){btn.textContent='↻';btn.disabled=false;}
+  if(found) applyPrice(id,found,foundT);
 }
 
 // ── customConfirm ──────────────────────────────────────────────────────────────
@@ -2479,138 +2647,68 @@ function clearData(){
         +'這會清空「'+acctName+'」的所有資產、金額、股價和成本，還原為預設值。<br><br>'
         +'<span style="color:var(--red)">此操作無法復原。</span>另一個帳戶不受影響。'
       +'</div>'
-      +'<div style="display:flex;gap:10px">'
-        +'<button id="resetCancel" style="flex:1;background:none;color:var(--text2);border:1px solid var(--border);border-radius:10px;padding:13px;font-family:\'Space Mono\',monospace;font-size:12px;cursor:pointer">取消</button>'
-        +'<button id="resetConfirm" style="flex:1;background:var(--red);color:#fff;border:none;border-radius:10px;padding:13px;font-family:\'Space Mono\',monospace;font-size:12px;font-weight:700;cursor:pointer">確定重置</button>'
+      +'<div style="display:flex;flex-direction:column;gap:8px">'
+        +'<button id="resetLocal" style="background:rgba(91,155,213,.15);color:#5b9bd5;border:1px solid rgba(91,155,213,.35);border-radius:10px;padding:13px;font-size:12px;font-weight:700;cursor:pointer">清除本地（會從雲端還原）</button>'
+        +'<button id="resetFull" style="background:var(--red);color:#fff;border:none;border-radius:10px;padding:13px;font-size:12px;font-weight:700;cursor:pointer">本地＋雲端 全部重置</button>'
+        +'<button id="resetCancel" style="background:none;color:var(--muted);border:1px solid var(--border);border-radius:10px;padding:11px;font-size:12px;cursor:pointer">取消</button>'
       +'</div>'
     +'</div>';
   document.body.appendChild(modal);
   document.getElementById('resetCancel').onclick=()=>modal.remove();
-  document.getElementById('resetConfirm').onclick=()=>{localStorage.removeItem(accountStoreKey());location.reload();};
+  document.getElementById('resetLocal').onclick=()=>{ modal.remove(); doLocalReset(); };
+  document.getElementById('resetFull').onclick=()=>{ modal.remove(); doFullReset(); };
   modal.onclick=(e)=>{if(e.target===modal)modal.remove();};
+}
+
+// 清本地：優先從雲端還原；雲端讀不到就不動作（避免預設值倒灌污染雲端）
+async function doLocalReset(){
+  const token = getGistToken();
+  const gistId = getGistId();
+  localStorage.removeItem(accountStoreKey());
+  localStorage.removeItem('gh_gist_savedAt');
+  if(!token || !gistId){ location.reload(); return; } // 無雲端 → 單純回預設(空白)
+  showCloudStatus('⬇ 從雲端還原中…', 'var(--text2)');
+  try {
+    const res = await fetch('https://api.github.com/gists/'+gistId, {
+      headers:{ Authorization:'Bearer '+token }, cache:'no-store',
+      signal: AbortSignal.timeout(10000)
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const content = (await res.json()).files[GIST_FILENAME]?.content;
+    if(!content) throw new Error('雲端無資料');
+    const s = JSON.parse(content);
+    if(applyCloudState(s)){
+      localStorage.setItem('gh_gist_savedAt', String(s.savedAt||Date.now()));
+      showCloudStatus('☁ 已從雲端還原 ✓', 'var(--green)');
+    } else {
+      showCloudStatus('⚠ 雲端沒有此帳戶資料', 'var(--gold)');
+    }
+  } catch(e){
+    showCloudStatus('⚠ 還原失敗（未重置）：'+e.message, 'var(--red)');
+  }
+}
+
+// 本地＋雲端全部重置：畫面歸零並主動上傳空白，覆蓋雲端此帳戶
+function doFullReset(){
+  localStorage.removeItem(accountStoreKey());
+  uid=0; gid=0;
+  groups=[makeGroup('美股',50,'USD'),makeGroup('台股',50,'TWD')];
+  assets=[
+    makeAsset(1,'VT','Vanguard全球股票',40,0,10.58,1),
+    makeAsset(1,'QQQ','Invesco那斯達克100',40,0,21.9,1),
+    makeAsset(1,'SMH','VanEck半導體ETF',20,0,31.3,1),
+    makeAsset(2,'00631L','元大台灣50正2',50,0,45.5,2),
+    makeAsset(2,'正二現金','備用加碼金',50,0,0,0),
+  ];
+  document.getElementById('withdrawInput').value=0;
+  dipBuy = defaultDipBuy();
+  buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
+  showCloudStatus('已重置，同步至雲端中…', 'var(--text2)');
 }
 
 
 
 // ── Quick Rebalance hint (per-group) ─────────────────────────────────────────
-// ── Group balance alert (第一層大區塊再平衡) ──────────────────────────────────
-function buildDriftMonitor(total){
-  if(!groups.length || total<=0) return '';
-  // 絕對偏離徽章：帶正負號，顏色看絕對值（≥10pp 紅、5–10pp 金、<5pp 藍）
-  const badge = dev=>{
-    const ad = Math.abs(dev);
-    const c = ad>=10?'var(--red)':ad>=5?'var(--gold)':'var(--blue)';
-    const b = ad>=10?'rgba(224,85,85,.12)':ad>=5?'rgba(201,168,76,.12)':'rgba(91,141,239,.12)';
-    return '<span style="font-family:monospace;font-size:10px;font-weight:700;color:'+c+';background:'+b+';border:1px solid '+c+';border-radius:6px;padding:2px 7px;white-space:nowrap;min-width:58px;text-align:center;display:inline-block">'+(dev>=0?'+':'')+dev.toFixed(1)+'%</span>';
-  };
-  let h = '<div style="border-top:1px solid var(--border);padding-top:10px">'
-    +'<div style="font-size:9px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-bottom:6px">偏移監測（絕對偏離）</div>';
-  groups.forEach(g=>{
-    const ga = assetsInGroup(g.id);
-    const gCur = ga.reduce((s,a)=>s+a.current,0);
-    const gCurPct = total>0 ? gCur/total*100 : 0;
-    const l1 = gCurPct - g.pct;
-    h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0 4px">'
-      +'<span style="font-size:13px;font-weight:700;color:'+groupColor(g.id)+'">'+g.name+'</span>'
-      +'<div style="display:flex;align-items:center;gap:8px">'
-        +'<span style="font-family:monospace;font-size:11px;color:var(--text2)">'+gCurPct.toFixed(1)+'% / '+g.pct+'%</span>'
-        +badge(l1)
-      +'</div>'
-    +'</div>';
-    const innerSum = ga.reduce((s,a)=>s+a.innerPct,0)||1;
-    ga.forEach(a=>{
-      const tgtInner = a.innerPct/innerSum*100;
-      const actInner = gCur>0 ? a.current/gCur*100 : 0;
-      const l2 = actInner - tgtInner;
-      h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0 3px 14px">'
-        +'<span style="font-size:11px;color:var(--text2)">'+a.ticker+'</span>'
-        +'<div style="display:flex;align-items:center;gap:8px">'
-          +'<span style="font-family:monospace;font-size:10px;color:var(--muted)">'+actInner.toFixed(1)+'% / '+Math.round(tgtInner)+'%</span>'
-          +badge(l2)
-        +'</div>'
-      +'</div>';
-    });
-  });
-  h += '</div>';
-  return h;
-}
-
-function renderGroupBalance(){
-  const el = document.getElementById('groupBalanceAlert');
-  if(!el) return;
-  if(!groups.length){ el.innerHTML=''; return; }
-  const total = totalCurrent();
-  const w = Math.min(withdraw(), total);
-  const after = Math.max(0, total - w);
-  if(total <= 0){ el.innerHTML=''; return; }
-
-  const fmtShort = v => {
-    const n = Math.abs(Math.round(v));
-    if(n >= 1e8) return (n/1e8).toFixed(1)+'億';
-    if(n >= 1e4) return Math.round(n/1e4)+'萬';
-    return n.toLocaleString('zh-TW');
-  };
-
-  // 計算每組數據
-  const rows = groups.map(g => {
-    const gCur    = assetsInGroup(g.id).reduce((s,a)=>s+a.current,0);
-    const gCurPct = total>0 ? gCur/total*100 : 0;
-    const gTgtAmt = after>0 ? after*g.pct/100 : 0;
-    const gDiff   = gTgtAmt - gCur;
-    const devPct  = gCurPct - g.pct;
-    const absDev  = Math.abs(devPct);
-    return {g, gCur, gCurPct, gDiff, devPct, absDev};
-  });
-
-  // 整張卡的緊急度取兩組最大偏移
-  const maxAbsDev = Math.max(...rows.map(r=>r.absDev));
-  const cardClr = maxAbsDev>10?'var(--red)':maxAbsDev>3?'var(--gold)':'var(--green)';
-  const cardBg  = maxAbsDev>10?'rgba(224,85,85,.05)':maxAbsDev>3?'rgba(201,168,76,.05)':'rgba(76,175,130,.04)';
-  const cardBdr = maxAbsDev>10?'rgba(224,85,85,.28)':maxAbsDev>3?'rgba(201,168,76,.28)':'rgba(76,175,130,.22)';
-
-  let rowsHtml = '';
-  rows.forEach((r,i) => {
-    const gColor   = groupColor(r.g.id);
-    const rowClr   = r.absDev>10?'var(--red)':r.absDev>3?'var(--gold)':'var(--green)';
-    const actColor = r.gDiff>0?'var(--green)':'var(--red)';
-    const devSign  = r.devPct>0?'+':'';
-    const divider  = i < rows.length-1 ? 'border-bottom:1px solid var(--border);' : '';
-
-    const actionInline = r.absDev<3
-      ? `<span style="font-size:12px;font-weight:600;color:var(--green)">✓ 均衡</span>`
-      : `<span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:${actColor}">${r.gDiff>0?'↑ 買入':'↓ 賣出'} NT$${fmtShort(Math.abs(r.gDiff))}</span>`;
-
-    rowsHtml += `<div style="padding:14px 0;${divider}">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <div style="display:flex;align-items:baseline;gap:10px">
-          <span style="font-size:18px;font-weight:700;color:${gColor};letter-spacing:1px">${r.g.name}</span>
-          <span style="font-size:10px;color:var(--muted)">目標 ${r.g.pct}%</span>
-        </div>
-        <div style="font-family:'Space Mono',monospace;font-size:24px;font-weight:700;color:${rowClr};line-height:1">${r.gCurPct.toFixed(1)}<span style="font-size:12px;font-weight:400;color:var(--muted)">%</span></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-        <span style="font-size:11px;color:var(--muted)">NT$${fmtShort(r.gCur)}</span>
-        <div style="display:flex;align-items:center;gap:10px">
-          ${actionInline}
-          <span style="font-size:10px;color:${rowClr};font-family:'Space Mono',monospace">${devSign}${r.devPct.toFixed(1)}%</span>
-        </div>
-      </div>
-    </div>`;
-  });
-
-  el.innerHTML = `<div style="background:${cardBg};border:1px solid ${cardBdr};border-radius:14px;padding:6px 16px">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0 6px;border-bottom:1px solid var(--border)">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:13px">⚖</span>
-        <span style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--gold2);text-transform:uppercase">大類別再平衡</span>
-      </div>
-      <span style="font-size:10px;color:${cardClr};font-family:'Space Mono',monospace">最大偏移 ${maxAbsDev.toFixed(1)}%</span>
-    </div>
-    ${rowsHtml}
-  </div>`;
-}
-
-
 function renderQuickRebal(gid, after){
   const el = document.getElementById('quickRebal-'+gid);
   if(!el) return;
@@ -2619,122 +2717,94 @@ function renderQuickRebal(gid, after){
   const ga = assetsInGroup(gid);
   if(!ga.length){ el.style.display='none'; return; }
 
+  // 純群組內部偏移：目標 = 群組目前總額 × 內部占比（不受台股:美股失衡影響）
   const innerSum = ga.reduce((s,a)=>s+a.innerPct,0)||1;
   const gCurTotal = ga.reduce((s,a)=>s+a.current,0);
-
-  // ── 第二層：純群組內互調，以群組目前實際總額為分母（與第一層完全脫鉤）──
-  // 絕對偏離 = |實際內部% − 目標內部%|（單位：pp 百分點）
+  if(gCurTotal<=0){ el.style.display='none'; return; }
   const deviations = ga.map(a=>{
     const tgtAmt = Math.round(gCurTotal * (a.innerPct/innerSum));
     const diff = tgtAmt - a.current;
-    const tgtPct = a.innerPct/innerSum*100;
-    const actPct = gCurTotal>0 ? a.current/gCurTotal*100 : 0;
-    const devPct = Math.abs(actPct - tgtPct);
-    return {a, tgtAmt, diff, devPct};
+    // 相對偏離 = (實際占比 − 目標占比) / 目標占比
+    const tgtInner = a.innerPct/innerSum*100;
+    const actInner = a.current/gCurTotal*100;
+    const relDev = tgtInner>0 ? (actInner-tgtInner)/tgtInner*100 : 0;
+    return {a, tgtAmt, diff, relDev};
   });
-  const maxDiffPct = gCurTotal>0 ? Math.max(...deviations.map(d=>d.devPct)) : 0;
 
-  // ── 第一層絕對偏離（此群組實際% vs 目標%，單位 pp）──
-  const total = totalCurrent();
-  const gCurPct = total>0 ? gCurTotal/total*100 : 0;
-  const l1Dev = Math.abs(gCurPct - g.pct);
+  const maxRelDev = Math.max(...deviations.map(d=>Math.abs(d.relDev)));
 
-  // ── 顏色門檻：≥10pp 紅、5–10pp 金、<5pp 藍（永遠顯示）──
-  const tier = maxDiffPct>=10?'red':maxDiffPct>=5?'gold':'blue';
-  const clr = tier==='red'?'var(--red)':tier==='gold'?'var(--gold)':'var(--blue)';
-  const bg  = tier==='red'?'rgba(224,85,85,.08)':tier==='gold'?'rgba(201,168,76,.08)':'rgba(91,141,239,.07)';
-  const bdr = tier==='red'?'rgba(224,85,85,.3)':tier==='gold'?'rgba(201,168,76,.3)':'rgba(91,141,239,.28)';
-  const advice = tier==='red'?'偏移較大，建議盡快再平衡':tier==='gold'?'偏移已達門檻，可擇機調整':'群組內均衡・不需動作';
+  const pctDev = maxRelDev.toFixed(1);
+  const urgency = maxRelDev>=30?'var(--red)':maxRelDev>=15?'var(--gold)':'#5b9bd5';
+  const urgBg   = maxRelDev>=30?'rgba(224,85,85,.08)':maxRelDev>=15?'rgba(201,168,76,.08)':'rgba(91,155,213,.08)';
+  const urgBdr  = maxRelDev>=30?'rgba(224,85,85,.3)':maxRelDev>=15?'rgba(201,168,76,.3)':'rgba(91,155,213,.3)';
+  const advice  = maxRelDev>=30?'⚠ 偏移達30%，建議盡快再平衡':maxRelDev>=15?'中度偏移，可擇機調整':'偏移輕微，暫可不調整';
 
-  // ── 🚨 任一層絕對偏離達 10pp 警示 ──
-  let alertHtml='';
-  if(l1Dev>=10 || maxDiffPct>=10){
-    const which=[];
-    if(l1Dev>=10) which.push('第一層 '+l1Dev.toFixed(1)+'%');
-    if(maxDiffPct>=10) which.push('第二層 '+maxDiffPct.toFixed(1)+'%');
-    alertHtml = `<div style="background:rgba(224,85,85,.15);border:1px solid rgba(224,85,85,.45);border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
-      <span style="font-size:14px">🚨</span>
-      <span style="font-size:11px;font-weight:700;color:var(--red);line-height:1.4">偏移達 10%（${which.join('・')}），建議立即再平衡</span>
+  const sells = deviations.filter(d=>d.diff<0).sort((a,b)=>a.diff-b.diff);
+  const buys  = deviations.filter(d=>d.diff>0).sort((a,b)=>b.diff-a.diff);
+
+  let sellHtml='', buyHtml='';
+  sells.forEach(({a,tgtAmt,diff})=>{
+    const cur=g.currency==='USD'?'$'+Math.round(Math.abs(diff)/(exchangeRate||32)).toLocaleString('en-US')+' USD':'$'+Math.round(Math.abs(diff)).toLocaleString('zh-TW');
+    sellHtml+=`<div style="background:rgba(224,85,85,.1);border:1px solid rgba(224,85,85,.25);border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+      <div><span style="color:var(--red);font-weight:700">↓ ${a.ticker}</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(a.innerPct/innerSum*100)}% → $${fmt(tgtAmt)}</div></div>
+      <div style="text-align:right"><div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--red)">-${cur}</div><div style="font-size:10px;color:var(--muted)">現 $${fmt(a.current)}</div></div>
     </div>`;
-  }
-
-  // ── 買賣建議：純群組內互調（賣多少剛好買多少），≥15% 才列出 ──
-  let suggestHtml='';
-  if(maxDiffPct>=5){
-    const sells = deviations.filter(d=>d.diff<0).sort((a,b)=>a.diff-b.diff);
-    const buys  = deviations.filter(d=>d.diff>0).sort((a,b)=>b.diff-a.diff);
-    let sellHtml='', buyHtml='';
-    sells.forEach(({a,tgtAmt,diff,devPct})=>{
-      const cur=g.currency==='USD'?'$'+Math.round(Math.abs(diff)/(exchangeRate||32)).toLocaleString('en-US')+' USD':'$'+Math.round(Math.abs(diff)).toLocaleString('zh-TW');
-      sellHtml+=`<div style="background:rgba(224,85,85,.1);border:1px solid rgba(224,85,85,.25);border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
-        <div><span style="color:var(--red);font-weight:700">↓ ${a.ticker}</span><span style="font-family:monospace;font-size:10px;font-weight:700;color:var(--red);margin-left:6px">+${devPct.toFixed(1)}%</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(a.innerPct/innerSum*100)}% → $${fmt(tgtAmt)}</div></div>
-        <div style="text-align:right"><div style="font-family:monospace;font-size:13px;font-weight:700;color:var(--red)">-${cur}</div><div style="font-size:10px;color:var(--muted)">現 $${fmt(a.current)}</div></div>
-      </div>`;
-    });
-    buys.forEach(({a,tgtAmt,diff,devPct})=>{
-      const cur=g.currency==='USD'?'$'+Math.round(diff/(exchangeRate||32)).toLocaleString('en-US')+' USD':'$'+fmt(diff);
-      buyHtml+=`<div style="background:rgba(76,175,130,.08);border:1px solid rgba(76,175,130,.25);border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
-        <div><span style="color:var(--green);font-weight:700">↑ ${a.ticker}</span><span style="font-family:monospace;font-size:10px;font-weight:700;color:var(--green);margin-left:6px">−${devPct.toFixed(1)}%</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(a.innerPct/innerSum*100)}% → $${fmt(tgtAmt)}</div></div>
-        <div style="text-align:right"><div style="font-family:monospace;font-size:13px;font-weight:700;color:var(--green)">+${cur}</div><div style="font-size:10px;color:var(--muted)">現 $${fmt(a.current)}</div></div>
-      </div>`;
-    });
-    suggestHtml = (sells.length?'<div style="font-family:monospace;font-size:9px;color:var(--red);letter-spacing:1px;margin:10px 0 5px;text-transform:uppercase">賣出</div>'+sellHtml:'')
-                + (buys.length?'<div style="font-family:monospace;font-size:9px;color:var(--green);letter-spacing:1px;margin:10px 0 5px;text-transform:uppercase">買入</div>'+buyHtml:'');
-  }
+  });
+  buys.forEach(({a,tgtAmt,diff})=>{
+    const cur=g.currency==='USD'?'$'+Math.round(diff/(exchangeRate||32)).toLocaleString('en-US')+' USD':'$'+fmt(diff);
+    buyHtml+=`<div style="background:rgba(76,175,130,.08);border:1px solid rgba(76,175,130,.25);border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+      <div><span style="color:var(--green);font-weight:700">↑ ${a.ticker}</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(a.innerPct/innerSum*100)}% → $${fmt(tgtAmt)}</div></div>
+      <div style="text-align:right"><div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--green)">+${cur}</div><div style="font-size:10px;color:var(--muted)">現 $${fmt(a.current)}</div></div>
+    </div>`;
+  });
 
   el.style.display='block';
-  el.innerHTML=`<div style="background:${bg};border:1px solid ${bdr};border-radius:10px;padding:12px">
+  el.innerHTML=`<div style="background:${urgBg};border:1px solid ${urgBdr};border-radius:10px;padding:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div style="font-family:monospace;font-size:9px;letter-spacing:2px;color:${clr};text-transform:uppercase">⚡ 快速再平衡（群組內）</div>
-      <div style="font-family:monospace;font-size:10px;color:${clr}">最大偏移 ${maxDiffPct.toFixed(1)}%</div>
+      <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:${urgency};text-transform:uppercase">⚡ 快速再平衡</div>
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:${urgency}">最大偏移 ${pctDev}%</div>
     </div>
-    ${alertHtml}
-    <div style="display:flex;align-items:center;gap:10px;padding:2px 0">
-      <div style="width:3px;align-self:stretch;min-height:16px;background:${clr};border-radius:2px"></div>
-      <span style="font-size:12px;font-weight:600;color:${clr}">${advice}</span>
+    <div style="display:flex;align-items:center;gap:10px;padding:2px 0 12px 0">
+      <div style="width:3px;align-self:stretch;min-height:16px;background:${urgency};border-radius:2px"></div>
+      <span style="font-size:12px;font-weight:600;color:${urgency}">${advice}</span>
     </div>
-    ${suggestHtml}
+    ${sells.length?'<div style="font-family:monospace;font-size:9px;color:var(--red);letter-spacing:1px;margin-bottom:5px;text-transform:uppercase">賣出</div>'+sellHtml:''}
+    ${buys.length?'<div style="font-family:monospace;font-size:9px;color:var(--green);letter-spacing:1px;margin-bottom:5px;text-transform:uppercase">買入</div>'+buyHtml:''}
+    ${(typeof dipBuy!=='undefined' && dipBuy.tiers && dipBuy.tiers.some(t=>t.done) && ga.some(a=>(a.leverage!=null?a.leverage:1)>=2))?'<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(201,168,76,.2);font-size:10px;color:var(--gold)">⚡ 加碼階梯執行中，此偏移屬刻意加碼（回到新高後自動重新武裝）</div>':''}
   </div>`;
 }
 
+
 // ── Fetch USD/TWD exchange rate ───────────────────────────────────────────────
-// ── 共用 Yahoo 抓價 helper：只走 proxy、記住成功 proxy、支援整輪失敗 backoff ──
-let _goodProxy = null;
-let _yahooBackoffUntil = 0;
-const YAHOO_PROXIES = ['https://corsproxy.io/?url=', 'https://api.allorigins.win/raw?url=', 'https://api.allorigins.win/get?url='];
-const _sleep = ms => new Promise(r=>setTimeout(r, ms));
-async function yahooFetchPrice(sym, timeoutMs){
-  if(!sym) return null;
+async function fetchRate(){
+  const sym = 'TWD=X'; // Yahoo Finance USD/TWD ticker
   const endpoints = [
     'https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
     'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1d',
   ];
-  // 上次成功的 proxy 排第一，其餘依序備援
-  const proxies = _goodProxy ? [_goodProxy, ...YAHOO_PROXIES.filter(p=>p!==_goodProxy)] : [...YAHOO_PROXIES];
-  for(const ep of endpoints){
+  const proxies = ['', 'https://corsproxy.io/?', 'https://api.allorigins.win/get?url='];
+  let found = null;
+  outer: for(const ep of endpoints){
     for(const px of proxies){
       try{
-        const url = px + encodeURIComponent(ep + '&_t=' + Date.now());
-        const res = await fetch(url, {signal:AbortSignal.timeout(timeoutMs||6000), cache:'no-store'});
-        if(!res.ok) continue;
+        const bust = '&_t='+Date.now();
+        const ep2 = ep + bust;
+        const url = px ? px+encodeURIComponent(ep2) : ep2;
+        const res = await fetch(url, {signal:AbortSignal.timeout(6000), cache:'no-store'});
         const raw = await res.json();
         const body = raw.contents ? JSON.parse(raw.contents) : raw;
         const p = body?.chart?.result?.[0]?.meta?.regularMarketPrice;
-        if(p && p>0){ _goodProxy = px; return p; }
-      }catch(e){}
+        if(p && p > 0){ found = p; break outer; }
+      } catch(e){}
     }
   }
-  return null;
-}
-
-async function fetchRate(){
-  const found = await yahooFetchPrice('TWD=X');
   if(found){
     exchangeRate = Math.round(found * 100) / 100; // round to 2 decimal places
     localStorage.setItem('exchangeRate', String(exchangeRate));
     // Update all rate inputs on screen
-    const disp = document.getElementById('rateDisplay');
-    if(disp) disp.textContent = 'USD/TWD ' + exchangeRate.toFixed(2);
+    document.querySelectorAll('[id^="rateInput-"]').forEach(inp=>{
+      if(inp !== document.activeElement) inp.value = exchangeRate;
+    });
   }
   return found;
 }
@@ -2761,6 +2831,52 @@ async function findPortfolioGist(token){
   } catch(e){ return null; }
 }
 
+// ⏪ 時光機：讀取 Gist 版本歷史的前一版並還原（還原後會以新版本上傳，雲端歷史不會消失）
+async function restorePreviousVersion(){
+  const token = getGistToken();
+  const gistId = getGistId();
+  if(!token){ setupGistToken(); return; }
+  if(!gistId){ showCloudStatus('⚠ 尚未連結雲端', 'var(--gold)'); return; }
+  showCloudStatus('⏪ 讀取歷史版本…', 'var(--text2)');
+  try {
+    const res = await fetch('https://api.github.com/gists/'+gistId, {
+      headers:{ Authorization:'Bearer '+token }, cache:'no-store',
+      signal: AbortSignal.timeout(10000)
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    const hist = data.history||[];
+    if(hist.length < 2) throw new Error('沒有更早的版本');
+    const prev = hist[1]; // [0]=目前版, [1]=前一版
+    const res2 = await fetch(prev.url, {
+      headers:{ Authorization:'Bearer '+token }, cache:'no-store',
+      signal: AbortSignal.timeout(10000)
+    });
+    if(!res2.ok) throw new Error('HTTP '+res2.status);
+    const content = (await res2.json()).files[GIST_FILENAME]?.content;
+    if(!content) throw new Error('該版本無資料');
+    const s = JSON.parse(content);
+    const t = new Date(prev.committed_at);
+    const ts = (t.getMonth()+1)+'/'+t.getDate()+' '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
+    customConfirm({
+      title:'⏪ 還原前一版',
+      message:'還原到 '+ts+' 的版本？目前資料會被取代（還原後會成為新版本上傳，之後仍可再還原）。',
+      confirmText:'還原',
+      confirmColor:'var(--gold)',
+      onConfirm: ()=>{
+        if(applyCloudState(s)){
+          saveData(); // 以還原後的資料排程上傳為最新版
+          showCloudStatus('⏪ 已還原 '+ts+' 版本 ✓', 'var(--green)');
+        } else {
+          showCloudStatus('⚠ 該版本沒有此帳戶資料', 'var(--gold)');
+        }
+      }
+    });
+  } catch(e){
+    showCloudStatus('⚠ 還原失敗：'+e.message, 'var(--red)');
+  }
+}
+
 // Re-link to the canonical (oldest) gist — clears local id and re-resolves
 async function relinkCloud(){
   const token = getGistToken();
@@ -2777,10 +2893,229 @@ async function relinkCloud(){
   }
 }
 
+
+// ── 正二下跌加碼 ────────────────────────────────────────────────────────────
+// 錨點=歷史高點(自動上移，可手改)；創新高時階梯重新武裝。
+// 執行加碼=帳面移轉：正二現金 → 槓桿標的（金額、股數、成本基礎連動）。
+function dipLevAsset(){ return assets.find(a=>(a.leverage!=null?a.leverage:1)>=2) || null; }
+function dipCashAsset(lev){
+  if(!lev) return null;
+  return assets.find(a=>a.groupId===lev.groupId && (a.leverage!=null?a.leverage:1)===0) || null;
+}
+
+function dipMaintainAnchor(){
+  const lev = dipLevAsset();
+  if(!lev || !lev.lastPrice) return;
+  if(!dipBuy.anchor || lev.lastPrice > dipBuy.anchor){
+    dipBuy.anchor = lev.lastPrice;
+    dipBuy.tiers.forEach(t=>t.done=false); // 創新高 → 重新武裝
+  }
+}
+
+function dipSetAnchor(v){
+  const n = parseFloat(v);
+  if(n>0){ dipBuy.anchor = Math.round(n*100)/100; saveData(); renderDipBuy(true); }
+}
+function dipSetTier(i,k,v){
+  const n = parseFloat(v); const t = dipBuy.tiers[i];
+  if(t && n>0 && n<=100){ t[k]=n; saveData(); renderDipBuy(true); }
+}
+function dipResetTier(i){
+  const t = dipBuy.tiers[i];
+  if(t){ t.done=false; saveData(); renderDipBuy(true); }
+}
+
+function execDipTier(i){
+  const lev = dipLevAsset(), cash = dipCashAsset(lev);
+  if(!lev || !cash) return;
+  const t = dipBuy.tiers[i]; if(!t || t.done) return;
+  const amt = Math.round(cash.current * t.pct/100);
+  if(amt<=0){ showCloudStatus('⚠ 加碼金餘額為 0', 'var(--gold)'); return; }
+  const newLev = lev.current + amt, newCash = cash.current - amt;
+  const pair = newLev + newCash;
+  const ratio = pair>0 ? Math.round(newLev/pair*100) : 0;
+  const exp = pair>0 ? Math.round(newLev*2/pair*100) : 0;
+  customConfirm({
+    title:'⚡ 執行第 '+(i+1)+' 階加碼',
+    message:'從「'+cash.ticker+'」移轉 <b style="color:var(--gold)">$'+fmt(amt)+'</b> 至「'+lev.ticker+'」。<br><br>'
+      +'執行後配對比例約 <b>'+ratio+'% : '+(100-ratio)+'%</b>，台股組曝險約 <b>'+exp+'%</b>。<br><br>'
+      +'<span style="color:var(--muted);font-size:11px">請先完成實際下單，此按鈕只更新帳面數字。</span>',
+    confirmText:'✓ 已下單，更新帳面',
+    confirmColor:'var(--gold)',
+    onConfirm: ()=>{
+      cash.current = newCash;
+      if((cash.costBasis||0)>0) cash.costBasis = Math.max(0, cash.costBasis - amt);
+      lev.current = newLev;
+      lev.costBasis = (lev.costBasis||0) + amt;
+      if(lev.lastPrice) lev.shares = Math.round((lev.shares||0) + amt/lev.lastPrice);
+      t.done = true;
+      buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
+      renderDipBuy(true);
+      showCloudStatus('⚡ 第'+(i+1)+'階加碼已入帳', 'var(--green)');
+    }
+  });
+}
+
+function renderDipBuy(force){
+  dipMaintainAnchor();
+  const el = document.getElementById('dipbuyBody');
+  if(!el) return;
+  // 使用者正在此分頁輸入時不重繪（避免焦點被打斷）；force=true 為主動操作後重繪
+  if(!force && el.contains(document.activeElement) && document.activeElement.tagName==='INPUT') return;
+  const lev = dipLevAsset();
+  const cash = dipCashAsset(lev);
+  if(!lev || !cash){
+    el.innerHTML = '<div class="action-card" style="padding:16px;color:var(--muted);font-size:12px;line-height:1.7">需要一檔槓桿≥2的標的（如 00631L）與同群組的加碼金（槓桿=0）。請先在持倉頁設定。</div>';
+    return;
+  }
+  const price = lev.lastPrice || null;
+  const anchor = dipBuy.anchor || null;
+  const dd = (price && anchor && anchor>0) ? Math.max(0,(anchor-price)/anchor*100) : null;
+  const anyDone = dipBuy.tiers.some(t=>t.done);
+  const deepClr = dd==null ? 'var(--muted)' : dd>=35 ? 'var(--red)' : dd>=20 ? 'var(--gold)' : 'var(--green)';
+
+  // 狀態卡：錨點 + 現價 + 回檔
+  let h = '<div class="action-card" style="padding:14px 16px;margin-bottom:10px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">'
+      +'<div><div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:3px">錨點（高點，自動上移）</div>'
+        +'<input type="number" inputmode="decimal" step="any" value="'+(anchor??'')+'" placeholder="尚無" onchange="dipSetAnchor(this.value)"'
+        +' style="width:90px;background:#111;color:var(--gold2);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-family:\'Space Mono\',monospace;font-size:14px;font-weight:700"></div>'
+      +'<div style="text-align:center"><div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:3px">'+lev.ticker+' 現價</div>'
+        +'<div style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:var(--text)">'+(price?price.toFixed(2):'—')+'</div></div>'
+      +'<div style="text-align:right"><div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:3px">目前回檔</div>'
+        +'<div style="font-family:\'Space Mono\',monospace;font-size:22px;font-weight:700;color:'+deepClr+'">'+(dd==null?'—':'−'+dd.toFixed(1)+'%')+'</div></div>'
+    +'</div>'
+    +(price?'':'<div style="margin-top:8px;font-size:11px;color:var(--gold)">尚無股價 — 請先到持倉頁「更新報價」</div>')
+    +'</div>';
+
+  // 加碼金餘額
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;background:rgba(76,175,130,.06);border:1px solid rgba(76,175,130,.2);border-radius:10px;padding:10px 14px;margin-bottom:12px">'
+    +'<span style="font-size:11px;color:var(--muted);letter-spacing:1px">加碼金餘額（'+cash.ticker+'）</span>'
+    +'<span style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:var(--green)">$'+fmt(cash.current)+'</span>'
+    +'</div>';
+
+  if(anyDone){
+    h += '<div style="background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.3);border-radius:10px;padding:9px 14px;margin-bottom:12px;font-size:11px;color:var(--gold);line-height:1.6">⚡ 加碼階梯執行中 — 群組內部偏移屬刻意加碼。'+lev.ticker+' 回到新高後階梯自動重新武裝。</div>';
+  }
+
+  // 階梯列
+  dipBuy.tiers.forEach((t,i)=>{
+    const triggered = dd!=null && dd >= t.dd;
+    const amt = Math.round(cash.current * t.pct/100);
+    let statusHtml;
+    if(t.done){
+      statusHtml = '<span style="font-size:11px;color:var(--green);font-weight:700">✓ 已執行</span>'
+        +'<button onclick="dipResetTier('+i+')" title="重設此階" style="margin-left:6px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer">↺</button>';
+    } else if(triggered){
+      statusHtml = '<button onclick="execDipTier('+i+')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 0 12px rgba(224,85,85,.5)">⚡ 執行加碼</button>';
+    } else {
+      statusHtml = '<span style="font-size:11px;color:var(--muted)">未觸發</span>';
+    }
+    const bdr = t.done ? 'rgba(76,175,130,.3)' : triggered ? 'rgba(224,85,85,.45)' : 'var(--border)';
+    const bg  = t.done ? 'rgba(76,175,130,.05)' : triggered ? 'rgba(224,85,85,.07)' : 'var(--surface2)';
+    h += '<div style="background:'+bg+';border:1px solid '+bdr+';border-radius:12px;padding:12px 14px;margin-bottom:8px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">'
+        +'<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)">'
+          +'<span style="font-family:\'Space Mono\',monospace;font-weight:700;color:var(--muted)">第'+(i+1)+'階</span>'
+          +'回檔 −<input type="number" inputmode="decimal" value="'+t.dd+'" onchange="dipSetTier('+i+',\'dd\',this.value)"'
+            +' style="width:44px;background:#111;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:3px 5px;font-family:\'Space Mono\',monospace;font-size:12px;text-align:center">%'
+          +'　投入 <input type="number" inputmode="decimal" value="'+t.pct+'" onchange="dipSetTier('+i+',\'pct\',this.value)"'
+            +' style="width:44px;background:#111;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:3px 5px;font-family:\'Space Mono\',monospace;font-size:12px;text-align:center">%'
+        +'</div>'
+        +'<div style="display:flex;align-items:center;gap:8px">'
+          +'<span style="font-family:\'Space Mono\',monospace;font-size:13px;font-weight:700;color:'+(triggered&&!t.done?'var(--red)':'var(--text2)')+'">$'+fmt(amt)+'</span>'
+          +statusHtml
+        +'</div>'
+      +'</div>'
+      +'</div>';
+  });
+
+  h += '<div style="font-size:10px;color:var(--muted);line-height:1.7;margin-top:10px">・投入%以「執行當下的加碼金餘額」計算，逐階遞減。<br>・門檻按 2 倍槓桿校準（正二回檔約為大盤 2 倍），過淺會太早耗盡子彈。<br>・執行第 3 階後配對可能達 7:3，組合淨曝險將暫時明顯超過 100%。</div>';
+
+  el.innerHTML = h;
+}
+
 // ── GitHub Gist Cloud Sync ───────────────────────────────────────────────────
 const GIST_FILENAME = 'portfolio-data.json';
-// 各帳戶獨立的 Gist 檔名：A 沿用舊檔名（相容既有資料），其他帳戶各自一檔
-function gistFile(){ return currentAccount==='A' ? GIST_FILENAME : 'portfolio-data-'+currentAccount+'.json'; }
+
+// Bug-fix 1: suppress re-upload while applying cloud data (prevents device ping-pong loop)
+let _cloudApplying = false;
+
+// Bug-fix 2: account-aware cloud payload — Gist stores BOTH accounts {A:{...},B:{...}}
+function readAccountSlice(acct){
+  try {
+    const raw = localStorage.getItem(accountStoreKey(acct));
+    return raw ? JSON.parse(raw) : null;
+  } catch(e){ return null; }
+}
+
+function buildCloudState(remoteAccounts){
+  const accounts = {};
+  const now = Date.now();
+  ['A','B'].forEach(ac=>{
+    if(ac === currentAccount){
+      accounts[ac] = {
+        groups, assets, uid, gid, exchangeRate, dipBuy,
+        withdraw: document.getElementById('withdrawInput').value,
+        savedAt: now
+      };
+    } else {
+      // 競態防護：另一帳戶取「本地副本 vs 雲端現存」中較新者，避免舊資料倒灌
+      const local = readAccountSlice(ac);
+      const remote = remoteAccounts ? remoteAccounts[ac] : null;
+      const pick = !local ? remote
+                 : !remote ? local
+                 : ((remote.savedAt||0) > (local.savedAt||0) ? remote : local);
+      if(pick) accounts[ac] = pick;
+    }
+  });
+  return { version:3, savedAt: now, accounts };
+}
+
+// 上傳前先讀雲端現況（供 buildCloudState 合併用）；失敗回傳 null 不阻擋上傳
+async function fetchRemoteAccounts(token, gistId){
+  if(!token || !gistId) return null;
+  try {
+    const res = await fetch('https://api.github.com/gists/'+gistId, {
+      headers:{ Authorization:'Bearer '+token }, cache:'no-store',
+      signal: AbortSignal.timeout(8000)
+    });
+    if(!res.ok) return null;
+    const data = await res.json();
+    const content = data.files[GIST_FILENAME]?.content;
+    if(!content) return null;
+    const s = JSON.parse(content);
+    return s.accounts || null;
+  } catch(e){ return null; }
+}
+
+// Applies cloud state: stores every account slice locally, renders current account.
+// Returns true if current account was applied. Handles legacy (version 2) format.
+function applyCloudState(s){
+  const accounts = s.accounts ? s.accounts : { [currentAccount]: s }; // legacy fallback
+  const stamp = s.savedAt || Date.now();
+  Object.keys(accounts).forEach(ac=>{
+    const slice = accounts[ac];
+    if(slice && slice.assets && slice.assets.length && (ac==='A'||ac==='B')){
+      localStorage.setItem(accountStoreKey(ac), JSON.stringify({...slice, savedAt: slice.savedAt||stamp}));
+    }
+  });
+  const cur = accounts[currentAccount];
+  if(!(cur && cur.assets && cur.assets.length)) return false;
+  groups = cur.groups||groups; assets = cur.assets;
+  uid = cur.uid||Math.max(...assets.map(a=>a.id),0);
+  gid = cur.gid||Math.max(...groups.map(g=>g.id),0);
+  if(cur.withdraw!=null) document.getElementById('withdrawInput').value = cur.withdraw;
+  if(cur.exchangeRate) exchangeRate = Number(cur.exchangeRate)||32;
+  dipBuy = cur.dipBuy || defaultDipBuy();
+  _cloudApplying = true;
+  try {
+    buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
+  } finally {
+    _cloudApplying = false;
+  }
+  return true;
+}
 
 function getGistToken(){ return localStorage.getItem('gh_gist_token')||''; }
 function getGistId(){    return localStorage.getItem('gh_gist_id')||''; }
@@ -2805,6 +3140,7 @@ function cloudSync(){
         +'<button id="cloudSave" style="background:rgba(155,127,212,.2);color:#c9b3f0;border:1px solid rgba(155,127,212,.4);border-radius:10px;padding:14px;font-size:13px;font-weight:700;cursor:pointer">⬆ 儲存到雲端</button>'
         +'<button id="cloudLoad" style="background:rgba(76,175,130,.12);color:var(--green);border:1px solid rgba(76,175,130,.35);border-radius:10px;padding:14px;font-size:13px;font-weight:700;cursor:pointer">⬇ 從雲端讀取</button>'
         +'<button id="cloudRelink" style="background:none;color:var(--text2);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:12px;cursor:pointer">🔗 重新連結（修正不同步）</button>'
+        +'<button id="cloudUndo" style="background:none;color:var(--text2);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:12px;cursor:pointer">⏪ 還原前一版（時光機）</button>'
         +'<button id="cloudToken" style="background:none;color:var(--text2);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:12px;cursor:pointer">⚙ 設定 GitHub Token</button>'
         +'<button id="cloudClose" style="background:none;color:var(--muted);border:none;padding:8px;font-size:12px;cursor:pointer">關閉</button>'
       +'</div>'
@@ -2815,6 +3151,7 @@ function cloudSync(){
   document.getElementById('cloudLoad').onclick  = ()=>{ modal.remove(); loadFromGist(); };
   document.getElementById('cloudToken').onclick = ()=>{ modal.remove(); setupGistToken(); };
   document.getElementById('cloudRelink').onclick = ()=>{ modal.remove(); relinkCloud(); };
+  document.getElementById('cloudUndo').onclick = ()=>{ modal.remove(); restorePreviousVersion(); };
   modal.onclick = (e)=>{ if(e.target===modal) modal.remove(); };
 }
 
@@ -2858,15 +3195,12 @@ async function saveToGist(){
   const token = getGistToken();
   if(!token){ setupGistToken(); return; }
   showCloudStatus('⬆ 儲存中…', 'var(--text2)');
-  const state = {
-    version:2, savedAt: Date.now(),
-    groups, assets, exchangeRate,
-    withdraw: document.getElementById('withdrawInput').value,
-  };
+  const _remoteAcc2 = await fetchRemoteAccounts(token, getGistId());
+  const state = buildCloudState(_remoteAcc2);
   const body = {
     description: '投資組合管理工具資料',
     public: false,
-    files: { [gistFile()]: { content: JSON.stringify(state, null, 2) } }
+    files: { [GIST_FILENAME]: { content: JSON.stringify(state, null, 2) } }
   };
   try {
     const gistId = getGistId();
@@ -2884,6 +3218,7 @@ async function saveToGist(){
     }
     const data = await res.json();
     localStorage.setItem('gh_gist_id', data.id);
+    localStorage.setItem('gh_gist_savedAt', String(state.savedAt));
     showCloudStatus('☁ 雲端已更新 ✓', 'var(--green)');
   } catch(e){
     showCloudStatus('⚠ 儲存失敗：'+e.message, 'var(--red)');
@@ -2906,27 +3241,22 @@ async function loadFromGist(){
     });
     if(!res.ok) throw new Error('HTTP '+res.status);
     const data = await res.json();
-    const content = data.files[gistFile()]?.content;
+    const content = data.files[GIST_FILENAME]?.content;
     if(!content) throw new Error('找不到資料檔案');
     const s = JSON.parse(content);
-    if(!s.assets||!s.assets.length) throw new Error('資料格式錯誤');
+    if(!s.accounts && !(s.assets&&s.assets.length)) throw new Error('資料格式錯誤');
     customConfirm({
       title:'從雲端讀取',
       message:'確定要載入雲端的資料嗎？目前的資料將被覆蓋。',
       confirmText:'載入',
       confirmColor:'var(--green)',
       onConfirm: ()=>{
-        _applyingRemote = true;
-        try{
-          groups = s.groups||groups; assets = s.assets;
-          uid = s.uid||Math.max(...assets.map(a=>a.id),0);
-          gid = s.gid||Math.max(...groups.map(g=>g.id),0);
-          if(s.withdraw) document.getElementById('withdrawInput').value=s.withdraw;
-          if(s.exchangeRate) exchangeRate = Number(s.exchangeRate)||32;
-          saveData();
-          buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc(true);
-        } finally { _applyingRemote = false; }
-        showCloudStatus('☁ 雲端資料已載入 ✓', 'var(--green)');
+        if(applyCloudState(s)){
+          localStorage.setItem('gh_gist_savedAt', String(s.savedAt||Date.now()));
+          showCloudStatus('☁ 雲端資料已載入 ✓', 'var(--green)');
+        } else {
+          showCloudStatus('⚠ 雲端沒有此帳戶的資料', 'var(--gold)');
+        }
       }
     });
   } catch(e){
@@ -2949,17 +3279,12 @@ function saveData(){
     localStorage.setItem(accountStoreKey(), JSON.stringify({
       groups: groups.map(g=>({...g})),
       assets: assets.map(a=>({...a})),
-      uid, gid, exchangeRate,
+      uid, gid, exchangeRate, dipBuy,
       withdraw: document.getElementById('withdrawInput').value,
       savedAt: Date.now()
     }));
     showSaveStatus();
-    // 內容指紋（不含 savedAt）：資料沒變就不上雲
-    const fp = JSON.stringify({groups, assets, uid, gid, exchangeRate,
-      withdraw: document.getElementById('withdrawInput').value});
-    if(_applyingRemote){ _lastSyncFingerprint = fp; return; } // 套用雲端中：只存本機，斬斷回音迴圈
-    if(fp === _lastSyncFingerprint) return;                    // 與上次「成功上傳」相同：跳過
-    scheduleGistSync(); // Auto cloud sync（指紋等上傳成功後才更新）
+    scheduleGistSync(); // Auto cloud sync
   } catch(e){
     const el = document.getElementById('saveStatus');
     if(el){
@@ -2984,50 +3309,31 @@ function showSaveStatus(){
 
 // ── Auto Cloud Sync ──────────────────────────────────────────────────────────
 let _gistSyncTimer = null;
-let _applyingRemote = false;     // 套用雲端資料中：不回傳上雲
-let _lastSyncFingerprint = '';   // 上次排程上雲的內容指紋
 
 // Called after every saveData — debounced 5 seconds
-function syncFingerprint(gs, as_, rate, wd){
-  return JSON.stringify({g:gs, a:as_, r:rate, w:String(wd||'')});
-}
-function currentFingerprint(){
-  return JSON.stringify({groups, assets, uid, gid, exchangeRate,
-    withdraw: document.getElementById('withdrawInput').value});
-}
 function scheduleGistSync(){
+  if(_cloudApplying) return; // Applying cloud data — don't echo it back up
   if(!getGistToken()) return; // No token → skip
   clearTimeout(_gistSyncTimer);
-  _gistSyncTimer = setTimeout(()=>{ _gistSyncTimer = null; autoSyncToGist(); }, 3000);
+  _gistSyncTimer = setTimeout(autoSyncToGist, 2000);
   showCloudIndicator('pending');
-}
-// 切走 App / 關頁前：若有未上傳的變更，立即用 keepalive 送出（iOS 凍結 JS 前搶送）
-function flushGistSync(){
-  if(!getGistToken()) return;
-  if(currentFingerprint() === _lastSyncFingerprint && !_gistSyncTimer) return; // 沒有待同步
-  clearTimeout(_gistSyncTimer); _gistSyncTimer = null;
-  autoSyncToGist(true);
 }
 
 // Silent auto-save to Gist
-async function autoSyncToGist(useKeepalive){
+async function autoSyncToGist(){
   const token = getGistToken();
   if(!token) return;
-  const fp = currentFingerprint();
-  if(fp === _lastSyncFingerprint){ showCloudIndicator('ok'); return; } // 內容已同步，不重複上傳
+  // Skip if rate-limited
+  if(Date.now() < _rateLimitedUntil){ showCloudIndicator('error'); return; }
   showCloudIndicator('syncing');
-  const state = {
-    version:2, savedAt: Date.now(),
-    groups, assets, exchangeRate,
-    withdraw: document.getElementById('withdrawInput').value,
-  };
+  // 先讀雲端現況合併另一帳戶（競態防護），再組建上傳內容
+  const _remoteAcc = await fetchRemoteAccounts(token, getGistId());
+  const state = buildCloudState(_remoteAcc);
   const body = {
     description: '投資組合管理工具資料',
     public: false,
-    files: { [gistFile()]: { content: JSON.stringify(state) } }
+    files: { [GIST_FILENAME]: { content: JSON.stringify(state) } }
   };
-  // Skip if rate-limited
-  if(Date.now() < _rateLimitedUntil){ showCloudIndicator('error'); return; }
   // Retry up to 2 times with increasing delay (handles transient network errors)
   for(let attempt=1; attempt<=2; attempt++){
     try {
@@ -3039,20 +3345,12 @@ async function autoSyncToGist(useKeepalive){
         method: gistId ? 'PATCH' : 'POST',
         headers: { Authorization:'Bearer '+token, 'Content-Type':'application/json' },
         body: JSON.stringify(body),
-        keepalive: !!useKeepalive,
         signal: AbortSignal.timeout(10000)
       });
-      // If rate limited (403 / 429), back off 30 min and stop
-      if(res.status === 403 || res.status === 429){
-        _rateLimitedUntil = Date.now() + 30*60*1000;
-        _lastSyncFingerprint = ''; // 失敗：允許之後重新排程
+      // If rate limited (403), back off 15 min and stop
+      if(res.status === 403){
+        _rateLimitedUntil = Date.now() + 15*60*1000;
         showCloudIndicator('error');
-        const el = document.getElementById('saveStatus');
-        if(el){
-          el.textContent = '⏸ API 速率限制，30 分鐘後重試';
-          el.style.color = 'var(--gold)';
-          el.style.opacity = '1';
-        }
         return;
       }
       // If gist was deleted (404), clear stale ID; next attempt creates new
@@ -3064,14 +3362,12 @@ async function autoSyncToGist(useKeepalive){
       const data = await res.json();
       localStorage.setItem('gh_gist_id', data.id);
       localStorage.setItem('gh_gist_savedAt', String(state.savedAt));
-      _lastSyncFingerprint = fp; // 上傳成功才標記為已同步
       showCloudIndicator('ok');
       return; // Success — stop retrying
     } catch(e){
       if(attempt < 2){
         await new Promise(r=>setTimeout(r, 1500));
       } else {
-        _lastSyncFingerprint = ''; // 失敗：允許之後重新排程
         showCloudIndicator('error');
       }
     }
@@ -3095,38 +3391,22 @@ async function autoLoadFromGist(){
     if(res.status === 404){ localStorage.removeItem('gh_gist_id'); return; }
     if(!res.ok) return;
     const data = await res.json();
-    const content = data.files[gistFile()]?.content;
+    const content = data.files[GIST_FILENAME]?.content;
     if(!content) return;
     const s = JSON.parse(content);
-    if(!s.assets||!s.assets.length) return;
-    const gistSavedAt = s.savedAt||0;
-    // 內容比對：雲端與本機相同 → 不用動
-    const remoteFp = syncFingerprint(s.groups||[], s.assets||[], Number(s.exchangeRate)||32, s.withdraw);
-    const localFp  = syncFingerprint(groups, assets, exchangeRate, document.getElementById('withdrawInput').value);
-    if(remoteFp === localFp){
-      localStorage.setItem('gh_gist_savedAt', String(gistSavedAt));
-      showCloudIndicator('ok');
-      return;
-    }
-    // 內容不同 → 用時間戳決定方向：本機較新就改推本機上雲
+    if(!s.accounts && !(s.assets&&s.assets.length)) return;
+    // Compare timestamps: only load if Gist is newer
     const localSavedAt = Number(localStorage.getItem('gh_gist_savedAt'))||0;
-    if(gistSavedAt <= localSavedAt){
-      scheduleGistSync(); // 本機離線編輯過 → 推上雲
-      return;
+    const gistSavedAt = s.savedAt||0;
+    if(gistSavedAt <= localSavedAt) {
+      showCloudIndicator('ok');
+      return; // Local is already up to date
     }
-    // Gist is newer — load silently（旗標防止回傳上雲造成乒乓迴圈）
-    _applyingRemote = true;
-    try{
-      groups = s.groups||groups; assets = s.assets;
-      uid = s.uid||Math.max(...assets.map(a=>a.id),0);
-      gid = s.gid||Math.max(...groups.map(g=>g.id),0);
-      if(s.withdraw) document.getElementById('withdrawInput').value=s.withdraw;
-      if(s.exchangeRate) exchangeRate = Number(s.exchangeRate)||32;
-      localStorage.setItem(accountStoreKey(), JSON.stringify({...s, savedAt:s.savedAt}));
+    // Gist is newer — apply silently (no echo back, account-aware)
+    if(applyCloudState(s)){
       localStorage.setItem('gh_gist_savedAt', String(gistSavedAt));
-      buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc(true);
-    } finally { _applyingRemote = false; }
-    showCloudIndicator('loaded');
+      showCloudIndicator('loaded');
+    }
   } catch(e){
     // Silent fail — don't bother user if background sync fails
   }
@@ -3155,7 +3435,6 @@ function showCloudIndicator(state){
 
 // ── Near-instant Gist sync (poll every 10s when visible + on focus) ─────────
 let _gistPollTimer = null;
-let _gistEtag = null; // ETag 條件請求：304 回應不計入 GitHub API 額度
 
 let _rateLimitedUntil = 0;
 async function checkGistForUpdates(){
@@ -3164,68 +3443,45 @@ async function checkGistForUpdates(){
   if(!token || !gistId) return;
   // Skip if rate-limited (back off)
   if(Date.now() < _rateLimitedUntil) return;
-  if(_applyingRemote) return;
-  // 本機有排程中的上傳 → 先讓本機上傳完，不套用遠端
-  if(_gistSyncTimer) return;
+  // Skip if user is actively editing (an input is focused)
+  if(document.activeElement && document.activeElement.tagName === 'INPUT') return;
   try {
-    const hdrs = { Authorization:'Bearer '+token };
-    if(_gistEtag) hdrs['If-None-Match'] = _gistEtag;
     const res = await fetch('https://api.github.com/gists/'+gistId, {
-      headers: hdrs,
+      headers:{ Authorization:'Bearer '+token },
       cache:'no-store'
     });
-    if(res.status === 304) return; // 雲端沒變 — 304 不計入 API 額度
     if(res.status === 404){ localStorage.removeItem('gh_gist_id'); return; }
-    if(res.status === 403 || res.status === 429){ _rateLimitedUntil = Date.now() + 30*60*1000; return; }
+    if(res.status === 403){ _rateLimitedUntil = Date.now() + 15*60*1000; return; }
     if(!res.ok) return;
-    _gistEtag = res.headers.get('ETag') || _gistEtag;
     const data = await res.json();
-    const content = data.files[gistFile()]?.content;
+    const content = data.files[GIST_FILENAME]?.content;
     if(!content) return;
     const s = JSON.parse(content);
+    if(!s.accounts && !(s.assets&&s.assets.length)) return;
+    const localSavedAt = Number(localStorage.getItem('gh_gist_savedAt'))||0;
     const gistSavedAt = s.savedAt||0;
-    // 內容比對（不靠裝置時鐘）：雲端內容與本機相同 → 不用動
-    const remoteFp = syncFingerprint(s.groups||[], s.assets||[], Number(s.exchangeRate)||32, s.withdraw);
-    const localFp  = syncFingerprint(groups, assets, exchangeRate, document.getElementById('withdrawInput').value);
-    if(remoteFp === localFp){ localStorage.setItem('gh_gist_savedAt', String(gistSavedAt)); return; }
-    // 本機有尚未上傳的變更 → 本機優先，等上傳覆蓋雲端
-    if(currentFingerprint() !== _lastSyncFingerprint && _lastSyncFingerprint !== '') return;
-    // Gist is newer — silently update（旗標防止回傳上雲造成乒乓迴圈）
-    _applyingRemote = true;
-    try{
-      groups=s.groups||groups; assets=s.assets;
-      uid=s.uid||Math.max(...assets.map(a=>a.id),0);
-      gid=s.gid||Math.max(...groups.map(g=>g.id),0);
-      if(s.withdraw) document.getElementById('withdrawInput').value=s.withdraw;
-      if(s.exchangeRate) exchangeRate=Number(s.exchangeRate)||32;
-      localStorage.setItem(accountStoreKey(),JSON.stringify({...s,savedAt:s.savedAt}));
-      localStorage.setItem('gh_gist_savedAt',String(gistSavedAt));
-      buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc(true);
-    } finally { _applyingRemote = false; }
-    showCloudIndicator('loaded');
+    if(gistSavedAt <= localSavedAt) return; // Already up to date
+    // Gist is newer — apply silently (no echo back, account-aware)
+    if(applyCloudState(s)){
+      localStorage.setItem('gh_gist_savedAt', String(gistSavedAt));
+      showCloudIndicator('loaded');
+    }
   } catch(e){}
 }
 
 function startGistPollTimer(){
-  // Poll every 10s while visible — ETag 條件請求讓「沒變」的輪詢回 304，不計入 API 額度
+  // Poll every 10 seconds while the tab is visible
   clearInterval(_gistPollTimer);
   _gistPollTimer = setInterval(()=>{
     if(document.visibilityState === 'visible') checkGistForUpdates();
-  }, 10 * 1000);
+  }, 60 * 1000); // 60s poll (focus/visibility events give instant feel)
 }
 
-// Immediate check when user switches back — but throttle to once per 30s
-let _lastFocusCheck = 0;
-function focusCheck(){
-  const now = Date.now();
-  if(now - _lastFocusCheck < 3000) return; // 3s 去重（focus 與 visibilitychange 會同時觸發）
-  _lastFocusCheck = now;
-  checkGistForUpdates();
-}
+// Immediate check when user switches back to the app
 document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState === 'visible') focusCheck();
+  if(document.visibilityState === 'visible') checkGistForUpdates();
 });
-window.addEventListener('focus', focusCheck);
+window.addEventListener('focus', ()=>{ checkGistForUpdates(); });
 // When network reconnects, push local data and check for updates
 window.addEventListener('online', ()=>{
   if(getGistToken()){
@@ -3236,10 +3492,10 @@ window.addEventListener('online', ()=>{
 
 // ── Defensive save: iOS background / tab close ────────────────────────────────
 document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState === 'hidden'){ saveData(); flushGistSync(); }
+  if(document.visibilityState === 'hidden') saveData();
 });
-window.addEventListener('beforeunload', ()=>{ saveData(); flushGistSync(); });
-window.addEventListener('pagehide', ()=>{ saveData(); flushGistSync(); }); // iOS Safari
+window.addEventListener('beforeunload', ()=>{ saveData(); });
+window.addEventListener('pagehide', ()=>{ saveData(); }); // iOS Safari
 
 // ── Enter key: blur input (dismiss keyboard, don't jump to next field) ─────────
 document.addEventListener('keydown', e=>{
@@ -3252,52 +3508,17 @@ document.addEventListener('keydown', e=>{
 });
 
 currentAccount = localStorage.getItem('currentAccount') || 'A';
-// ── 清除先前版本註冊過的 service worker ──
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{});
-}
 const savedAt = loadData();
 autoLoadFromGist(); // Auto-load from cloud if new
-startGistPollTimer(); // Poll for Gist updates
+startGistPollTimer(); // Poll Gist every 3 miner
+startGistPollTimer(); // Poll for Gist updates every 3 min
 buildGroupCards();
 buildReturnCards();
 updateGroupSelect();
-// 初始化匯率顯示
-const _rDisp = document.getElementById('rateDisplay');
-if(_rDisp) _rDisp.textContent = 'USD/TWD ' + exchangeRate.toFixed(2);
 updateCalc();
 updateAccountBar();
 startAutoRefresh();
 setTimeout(initSliderFills, 50);
-// ── Auto-hide tabs on scroll-down, show on scroll-up ────────────────────
-(()=>{
-  const tabs = document.querySelector('.tabs');
-  if(!tabs) return;
-  let lastY = window.scrollY, ticking = false;
-  window.addEventListener('scroll', ()=>{
-    if(ticking) return;
-    ticking = true;
-    requestAnimationFrame(()=>{
-      const y = window.scrollY;
-      const dy = y - lastY;
-      // 滑到頂部一定顯示
-      if(y < 60){ tabs.classList.remove('tabs-hidden'); }
-      // 往下滑超過 8px 且離頂部 > 80px → 隱藏
-      else if(dy > 8){ tabs.classList.add('tabs-hidden'); }
-      // 往上滑超過 8px → 顯示
-      else if(dy < -8){ tabs.classList.remove('tabs-hidden'); }
-      lastY = y;
-      ticking = false;
-    });
-  }, {passive:true});
-})();
-// ── 修正 fixed header 擋住內容：設定 paddingTop 並監聽高度變化 ──────────────
-adjustContentPadding();
-window.addEventListener('resize', adjustContentPadding);
-const _fixedEl = document.querySelector('.fixed-top');
-if(_fixedEl && typeof ResizeObserver !== 'undefined'){
-  new ResizeObserver(adjustContentPadding).observe(_fixedEl);
-}
 if(savedAt){
   const d=new Date(savedAt);
   const ts=d.toLocaleDateString('zh-TW')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
