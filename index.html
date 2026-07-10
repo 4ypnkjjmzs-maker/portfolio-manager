@@ -18,9 +18,9 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-seri
 .header-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;}
 .app-title{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:4px;color:var(--text2);text-transform:uppercase;}
 .total-label{font-size:11px;color:var(--muted);}
-.total-value{font-family:'Space Mono',monospace;font-size:26px;font-weight:700;color:var(--gold2);letter-spacing:-1px;}
+.total-value{font-family:'Space Mono',monospace;font-size:26px;font-weight:700;color:var(--gold2);letter-spacing:-1px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
-.tabs{display:flex;border-bottom:1px solid var(--border);padding:0 20px;background:var(--bg);position:sticky;top:76px;z-index:99;overflow-x:auto;}
+.tabs{display:flex;border-bottom:1px solid var(--border);padding:0 20px;background:var(--bg);position:sticky;top:var(--hdr-h,76px);z-index:99;overflow-x:auto;}
 .tab{font-size:11px;letter-spacing:2px;color:var(--muted);padding:13px 0;margin-right:24px;cursor:pointer;border-bottom:2px solid transparent;transition:all .1s;font-family:'Space Mono',monospace;text-transform:uppercase;white-space:nowrap;flex-shrink:0;}
 .tab.active{color:var(--gold);border-bottom-color:var(--gold);}
 
@@ -529,7 +529,7 @@ const lockedGroups = new Set(); // Set<groupId>
 let exchangeRate = Number(localStorage.getItem('exchangeRate')) || 32;
 // 下跌加碼階梯（門檻按2倍槓桿校準：正二回檔約為大盤2倍，太淺會過早耗盡子彈）
 function defaultDipBuy(){
-  return { anchor:null, tiers:[
+  return { anchor:null, reserve:0, tiers:[
     {dd:20, pct:20, done:false},
     {dd:35, pct:30, done:false},
     {dd:50, pct:50, done:false}
@@ -1941,7 +1941,7 @@ function showGroupSumWarning(totalPct){
   modal.id = 'groupSumModal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;';
   modal.innerHTML = `
-    <div style="background:#1a1a1a;border:1px solid rgba(224,85,85,.4);border-radius:16px;padding:24px;width:100%;max-width:340px;text-align:center">
+    <div style="background:#1a1a1a;border:1px solid rgba(224,85,85,.4);border-radius:16px;padding:24px;width:100%;max-height:85vh;overflow-y:auto;max-width:340px;text-align:center">
       <div style="font-size:32px;margin-bottom:12px">⚠️</div>
       <div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--red);margin-bottom:8px">群組比例未達 100%</div>
       <div style="font-size:13px;color:var(--muted);margin-bottom:6px">目前合計：<span style="color:var(--red);font-weight:700">${totalPct}%</span></div>
@@ -2037,7 +2037,7 @@ function editAccountName(){
   modal.id = 'acctNameModal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;';
   modal.innerHTML =
-    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-width:320px;">'
+    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-height:85vh;overflow-y:auto;max-width:320px;">'
       +'<div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px">重新命名「'+cur+'」</div>'
       +'<input id="acctNameModalInput" type="text" maxlength="12" value="'+cur.replace(/"/g,'&quot;')+'"'
         +' style="width:100%;box-sizing:border-box;background:#111;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:15px;margin-bottom:14px">'
@@ -2127,7 +2127,7 @@ function showPriceModal(id){
   const isUSD = g && g.currency==='USD';
   const unit = isUSD ? 'USD' : 'TWD';
   modal.innerHTML =
-    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-width:320px;">'
+    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-height:85vh;overflow-y:auto;max-width:320px;">'
       +'<div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px">輸入 '+a.ticker+' 股價 ('+unit+')</div>'
       +'<input id="manualPriceInput" type="number" inputmode="decimal" step="any" min="0" placeholder="0.00" value="'+cur+'"'
         +' style="width:100%;box-sizing:border-box;background:#111;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:16px;margin-bottom:14px">'
@@ -2342,7 +2342,7 @@ function showExportModal(text){
   modal.id = 'exportModal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
   modal.innerHTML =
-    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-width:360px;">'
+    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-height:85vh;overflow-y:auto;max-width:360px;">'
       +'<div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">📤 匯出資料</div>'
       +'<div style="font-size:12px;color:var(--text2);margin-bottom:14px">複製以下資料後存到記事本，下次用「匯入」還原。</div>'
       +'<textarea readonly style="width:100%;box-sizing:border-box;height:100px;background:#111;color:var(--text2);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:11px;resize:none;margin-bottom:14px">'+text.slice(0,500)+'…</textarea>'
@@ -2433,11 +2433,32 @@ document.addEventListener('input',e=>{
 });
 
 // ── Layout ────────────────────────────────────────────────────────────────────
+// 版面補償（兩種模式共用一套機制）：
+// 手機(<768px)：header sticky、tabs sticky —— 量 header 實際高度寫進 --hdr-h，
+//   tabs 黏在 header 正下方（取代舊的寫死 76px，header 高度會隨雲端狀態文字變動）。
+// 桌面(>=768px)：.fixed-top 整塊 position:fixed 脫離文流 —— 內容區必須墊
+//   paddingTop = fixed-top 實際高度，否則頁面頂端會被表頭蓋住（切字）。
 function adjustContentPadding(){
   const fixed=document.querySelector('.fixed-top');
   const shell=document.querySelector('.app-shell');
-  if(fixed&&shell) shell.style.paddingTop=fixed.offsetHeight+'px';
+  const header=document.querySelector('.header');
+  if(header) document.documentElement.style.setProperty('--hdr-h', header.offsetHeight+'px');
+  if(fixed&&shell){
+    const isFixed = getComputedStyle(fixed).position==='fixed';
+    shell.style.paddingTop = isFixed ? fixed.offsetHeight+'px' : '';
+  }
 }
+// 重算時機：載入、視窗大小/方向改變、網頁字型載入完成、
+// 表頭高度變動（雲端狀態文字出現、帳戶改名、按鈕換行）由 ResizeObserver 自動接手
+window.addEventListener('resize', adjustContentPadding);
+window.addEventListener('orientationchange', adjustContentPadding);
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(adjustContentPadding);
+if(typeof ResizeObserver!=='undefined'){
+  const _layoutRO=new ResizeObserver(adjustContentPadding);
+  const _ft=document.querySelector('.fixed-top'); if(_ft) _layoutRO.observe(_ft);
+  const _hd=document.querySelector('.header');    if(_hd) _layoutRO.observe(_hd);
+}
+adjustContentPadding();
 
 // ── updateCalc ────────────────────────────────────────────────────────────────
 function updateCalc(){
@@ -2540,9 +2561,10 @@ function refreshGroupMini(){
     const ga=assetsInGroup(g.id);
     const total=totalCurrent();
     const after=Math.max(0,total-withdraw());
-    const curExp=ga.reduce((s,a)=>s+a.current*(a.leverage!=null?a.leverage:1),0);
+    // 總曝險：全帳戶所有資產（不分群組）的曝險合計 ÷ 總資產
+    const curExp=assets.reduce((s,a)=>s+a.current*(a.leverage!=null?a.leverage:1),0);
     const curExpPct=total>0?(curExp/total*100).toFixed(1):0;
-    const tgtExp=ga.reduce((s,a)=>{
+    const tgtExp=assets.reduce((s,a)=>{
       const effPct=assetEffectivePct(a);
       const lev=a.leverage!=null?a.leverage:1;
       return s+(after*effPct/100)*lev;
@@ -2573,7 +2595,7 @@ function refreshGroupMini(){
     el.innerHTML='<div style="display:flex;gap:4px;justify-content:center;margin-bottom:12px">'+cols+'</div>'
       +bar
       +'<div style="display:flex;align-items:center;justify-content:center;gap:14px;text-align:center;background:rgba(76,175,130,.06);border:1px solid rgba(76,175,130,.18);border-radius:10px;padding:10px 16px">'
-        +'<div><div style="font-size:9px;color:var(--muted);margin-bottom:3px;letter-spacing:1px">現在曝險</div>'
+        +'<div><div style="font-size:9px;color:var(--muted);margin-bottom:3px;letter-spacing:1px">現在總曝險</div>'
           +'<div style="font-family:\'Space Mono\',monospace;font-size:19px;font-weight:700;color:var(--text2)">'+curExpPct+'%</div></div>'
         +'<div style="color:var(--green);font-size:16px;font-weight:700">→</div>'
         +'<div><div style="font-size:9px;color:var(--muted);margin-bottom:3px;letter-spacing:1px">再平衡後</div>'
@@ -2619,7 +2641,7 @@ function customConfirm(opts){
   const cColor=opts.confirmColor||'var(--gold)';
   const cText=opts.confirmText||'確定';
   modal.innerHTML=
-    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-width:340px;">'
+    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-height:85vh;overflow-y:auto;max-width:340px;">'
       +'<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:12px">'+(opts.title||'確認')+'</div>'
       +'<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px">'+(opts.message||'')+'</div>'
       +'<div style="display:flex;gap:10px">'
@@ -2642,7 +2664,7 @@ function clearData(){
   modal.id='resetModal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;';
   modal.innerHTML=
-    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-width:340px;">'
+    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-height:85vh;overflow-y:auto;max-width:340px;">'
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
         +'<span style="font-size:20px">⚠️</span>'
         +'<div style="font-size:15px;font-weight:700;color:var(--text)">確定要重置嗎？</div>'
@@ -2746,21 +2768,52 @@ function renderQuickRebal(gid, after){
   const sells = deviations.filter(d=>d.diff<0).sort((a,b)=>a.diff-b.diff);
   const buys  = deviations.filter(d=>d.diff>0).sort((a,b)=>b.diff-a.diff);
 
+  // 單列渲染：金額（美股＝美元主顯＋台幣副顯）＋股數（規則與第二層一致；現金不顯示股數）
+  const rowHtml = ({a,tgtAmt,diff}, isSell) => {
+    const clr = isSell?'var(--red)':'var(--green)';
+    const bg  = isSell?'rgba(224,85,85,.1)':'rgba(76,175,130,.08)';
+    const bdr = isSell?'rgba(224,85,85,.25)':'rgba(76,175,130,.25)';
+    const arrow = isSell?'↓':'↑';
+    const sign = isSell?'-':'+';
+    const absDiff = Math.abs(diff);
+    const isUSD = g.currency==='USD';
+    const isCash = (a.leverage!=null?a.leverage:1)===0;
+    let amtHtml;
+    if(isUSD){
+      const diffUSD = absDiff/(exchangeRate||32);
+      amtHtml = '<div style="font-family:\'Space Mono\',monospace;font-size:13px;font-weight:700;color:'+clr+'">'+sign+'$'+Math.round(diffUSD).toLocaleString('en-US')+' <span style="font-size:9px;opacity:.6">USD</span></div>'
+        +'<div style="font-family:\'Space Mono\',monospace;font-size:11px;color:'+clr+';opacity:.65;margin-top:1px">'+sign+'NT$'+fmt(absDiff)+'</div>';
+    } else {
+      amtHtml = '<div style="font-family:\'Space Mono\',monospace;font-size:13px;font-weight:700;color:'+clr+'">'+sign+'$'+fmt(absDiff)+'</div>';
+    }
+    let sharesHtml='';
+    if(!isCash){
+      if(a.lastPrice && a.lastPrice>0){
+        const priceInTWD = isUSD ? a.lastPrice*(exchangeRate||32) : a.lastPrice;
+        const sharesAmt = absDiff/priceInTWD;
+        const sharesDisplay = sharesAmt>=10?Math.round(sharesAmt).toLocaleString():sharesAmt>=1?sharesAmt.toFixed(1):sharesAmt.toFixed(3);
+        const priceDisplay = isUSD?'USD $'+a.lastPrice.toFixed(2):'NT$ '+a.lastPrice.toLocaleString('zh-TW',{minimumFractionDigits:2,maximumFractionDigits:2});
+        sharesHtml = '<div style="font-family:\'Space Mono\',monospace;font-size:11px;line-height:1.5;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.06)">'
+          +'<span style="color:var(--muted)">約</span> <span style="color:'+clr+';font-weight:700">'+(isSell?'賣出':'買入')+' </span>'
+          +'<span style="color:'+clr+';font-weight:700;font-size:14px">'+sharesDisplay+'</span>'
+          +'<span style="color:'+clr+';font-weight:700"> 股</span>'
+          +'<span style="color:var(--muted)"> @ '+priceDisplay+'</span></div>';
+      } else {
+        sharesHtml = '<div style="font-size:10px;color:var(--muted);opacity:.45;margin-top:4px">輸入股價可顯示股數</div>';
+      }
+    }
+    return `<div style="background:${bg};border:1px solid ${bdr};border-radius:8px;padding:8px 12px;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><span style="color:${clr};font-weight:700">${arrow} ${a.ticker}</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(a.innerPct/innerSum*100)}% → $${fmt(tgtAmt)}</div></div>
+        <div style="text-align:right;flex-shrink:0;padding-left:10px">${amtHtml}<div style="font-size:10px;color:var(--muted);margin-top:1px">現 $${fmt(a.current)}</div></div>
+      </div>
+      ${sharesHtml}
+    </div>`;
+  };
+
   let sellHtml='', buyHtml='';
-  sells.forEach(({a,tgtAmt,diff})=>{
-    const cur=g.currency==='USD'?'$'+Math.round(Math.abs(diff)/(exchangeRate||32)).toLocaleString('en-US')+' USD':'$'+Math.round(Math.abs(diff)).toLocaleString('zh-TW');
-    sellHtml+=`<div style="background:rgba(224,85,85,.1);border:1px solid rgba(224,85,85,.25);border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
-      <div><span style="color:var(--red);font-weight:700">↓ ${a.ticker}</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(a.innerPct/innerSum*100)}% → $${fmt(tgtAmt)}</div></div>
-      <div style="text-align:right"><div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--red)">-${cur}</div><div style="font-size:10px;color:var(--muted)">現 $${fmt(a.current)}</div></div>
-    </div>`;
-  });
-  buys.forEach(({a,tgtAmt,diff})=>{
-    const cur=g.currency==='USD'?'$'+Math.round(diff/(exchangeRate||32)).toLocaleString('en-US')+' USD':'$'+fmt(diff);
-    buyHtml+=`<div style="background:rgba(76,175,130,.08);border:1px solid rgba(76,175,130,.25);border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
-      <div><span style="color:var(--green);font-weight:700">↑ ${a.ticker}</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(a.innerPct/innerSum*100)}% → $${fmt(tgtAmt)}</div></div>
-      <div style="text-align:right"><div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--green)">+${cur}</div><div style="font-size:10px;color:var(--muted)">現 $${fmt(a.current)}</div></div>
-    </div>`;
-  });
+  sells.forEach(d=>{ sellHtml+=rowHtml(d,true); });
+  buys.forEach(d=>{ buyHtml+=rowHtml(d,false); });
 
   el.style.display='block';
   el.innerHTML=`<div style="background:${urgBg};border:1px solid ${urgBdr};border-radius:10px;padding:12px">
@@ -2924,6 +2977,11 @@ function dipSetTier(i,k,v){
   const n = parseFloat(v); const t = dipBuy.tiers[i];
   if(t && n>0 && n<=100){ t[k]=n; saveData(); renderDipBuy(true); }
 }
+function dipSetReserve(v){
+  const n = Math.round(parseFloat(v));
+  dipBuy.reserve = (isFinite(n) && n>0) ? n : 0;
+  saveData(); renderDipBuy(true);
+}
 function dipResetTier(i){
   const t = dipBuy.tiers[i];
   if(t){ t.done=false; saveData(); renderDipBuy(true); }
@@ -2933,8 +2991,10 @@ function execDipTier(i){
   const lev = dipLevAsset(), cash = dipCashAsset(lev);
   if(!lev || !cash) return;
   const t = dipBuy.tiers[i]; if(!t || t.done) return;
-  const amt = Math.round(cash.current * t.pct/100);
-  if(amt<=0){ showCloudStatus('⚠ 加碼金餘額為 0', 'var(--gold)'); return; }
+  const reserve = Math.max(0, dipBuy.reserve||0);
+  const avail = Math.max(0, cash.current - reserve);
+  const amt = Math.round(avail * t.pct/100);
+  if(amt<=0){ showCloudStatus(reserve>0?'⚠ 可動用加碼金為 0（保留 $'+fmt(reserve)+'）':'⚠ 加碼金餘額為 0', 'var(--gold)'); return; }
   const newLev = lev.current + amt, newCash = cash.current - amt;
   const pair = newLev + newCash;
   const ratio = pair>0 ? Math.round(newLev/pair*100) : 0;
@@ -2942,7 +3002,8 @@ function execDipTier(i){
   customConfirm({
     title:'⚡ 執行第 '+(i+1)+' 階加碼',
     message:'從「'+cash.ticker+'」移轉 <b style="color:var(--gold)">$'+fmt(amt)+'</b> 至「'+lev.ticker+'」。<br><br>'
-      +'執行後配對比例約 <b>'+ratio+'% : '+(100-ratio)+'%</b>，台股組曝險約 <b>'+exp+'%</b>。<br><br>'
+      +'執行後配對比例約 <b>'+ratio+'% : '+(100-ratio)+'%</b>，台股組曝險約 <b>'+exp+'%</b>。<br>'
+      +'執行後加碼金餘額 <b>$'+fmt(newCash)+'</b>'+(reserve>0?'（≥ 保留線 $'+fmt(reserve)+'）':'')+'。<br><br>'
       +'<span style="color:var(--muted);font-size:11px">請先完成實際下單，此按鈕只更新帳面數字。</span>',
     confirmText:'✓ 已下單，更新帳面',
     confirmColor:'var(--gold)',
@@ -2992,10 +3053,24 @@ function renderDipBuy(force){
     +(price?'':'<div style="margin-top:8px;font-size:11px;color:var(--gold)">尚無股價 — 請先到持倉頁「更新報價」</div>')
     +'</div>';
 
-  // 加碼金餘額
-  h += '<div style="display:flex;justify-content:space-between;align-items:center;background:rgba(76,175,130,.06);border:1px solid rgba(76,175,130,.2);border-radius:10px;padding:10px 14px;margin-bottom:12px">'
-    +'<span style="font-size:11px;color:var(--muted);letter-spacing:1px">加碼金餘額（'+cash.ticker+'）</span>'
-    +'<span style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:var(--green)">$'+fmt(cash.current)+'</span>'
+  // 加碼金餘額 ＋ 保留現金 ＋ 可動用
+  const reserve = Math.max(0, dipBuy.reserve||0);
+  const avail = Math.max(0, cash.current - reserve);
+  h += '<div style="background:rgba(76,175,130,.06);border:1px solid rgba(76,175,130,.2);border-radius:10px;padding:10px 14px;margin-bottom:12px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+      +'<span style="font-size:11px;color:var(--muted);letter-spacing:1px">加碼金餘額（'+cash.ticker+'）</span>'
+      +'<span style="font-family:\'Space Mono\',monospace;font-size:14px;font-weight:700;color:var(--text2)">$'+fmt(cash.current)+'</span>'
+    +'</div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px">'
+      +'<span style="font-size:11px;color:var(--muted);letter-spacing:1px">保留現金（階梯不動用）</span>'
+      +'<input type="number" inputmode="numeric" min="0" value="'+(reserve||'')+'" placeholder="0" onchange="dipSetReserve(this.value)"'
+      +' style="width:110px;background:#111;color:var(--gold2);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-family:\'Space Mono\',monospace;font-size:13px;font-weight:700;text-align:right">'
+    +'</div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid rgba(76,175,130,.2)">'
+      +'<span style="font-size:11px;color:var(--green);letter-spacing:1px;font-weight:600">可動用加碼金</span>'
+      +'<span style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:var(--green)">$'+fmt(avail)+'</span>'
+    +'</div>'
+    +(reserve>=cash.current&&cash.current>0?'<div style="margin-top:6px;font-size:10px;color:var(--gold)">⚠ 保留額 ≥ 目前餘額，階梯全部凍結</div>':'')
     +'</div>';
 
   if(anyDone){
@@ -3005,11 +3080,13 @@ function renderDipBuy(force){
   // 階梯列
   dipBuy.tiers.forEach((t,i)=>{
     const triggered = dd!=null && dd >= t.dd;
-    const amt = Math.round(cash.current * t.pct/100);
+    const amt = Math.round(avail * t.pct/100);
     let statusHtml;
     if(t.done){
       statusHtml = '<span style="font-size:11px;color:var(--green);font-weight:700">✓ 已執行</span>'
         +'<button onclick="dipResetTier('+i+')" title="重設此階" style="margin-left:6px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer">↺</button>';
+    } else if(triggered && amt<=0){
+      statusHtml = '<span style="font-size:11px;color:var(--gold)">可動用為 0</span>';
     } else if(triggered){
       statusHtml = '<button onclick="execDipTier('+i+')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 0 12px rgba(224,85,85,.5)">⚡ 執行加碼</button>';
     } else {
@@ -3034,7 +3111,7 @@ function renderDipBuy(force){
       +'</div>';
   });
 
-  h += '<div style="font-size:10px;color:var(--muted);line-height:1.7;margin-top:10px">・投入%以「執行當下的加碼金餘額」計算，逐階遞減。<br>・門檻按 2 倍槓桿校準（正二回檔約為大盤 2 倍），過淺會太早耗盡子彈。<br>・執行第 3 階後配對可能達 7:3，組合淨曝險將暫時明顯超過 100%。</div>';
+  h += '<div style="font-size:10px;color:var(--muted);line-height:1.7;margin-top:10px">・投入%以「執行當下的可動用餘額（加碼金 − 保留現金）」計算，逐階遞減，永不動用保留額。<br>・門檻按 2 倍槓桿校準（正二回檔約為大盤 2 倍），過淺會太早耗盡子彈。<br>・執行第 3 階後配對可能達 7:3，組合淨曝險將暫時明顯超過 100%。</div>';
 
   el.innerHTML = h;
 }
@@ -3137,7 +3214,7 @@ function cloudSync(){
   modal.id = 'cloudModal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
   modal.innerHTML =
-    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-width:360px;">'
+    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-height:85vh;overflow-y:auto;max-width:360px;">'
       +'<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px">☁️ 雲端同步</div>'
       +'<div style="font-size:11px;color:var(--muted);margin-bottom:18px">狀態：'+statusText+'</div>'
       +'<div style="display:flex;flex-direction:column;gap:10px">'
@@ -3167,7 +3244,7 @@ function setupGistToken(){
   modal.id = 'tokenModal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
   modal.innerHTML =
-    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-width:380px;">'
+    '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:24px;width:100%;max-height:85vh;overflow-y:auto;max-width:380px;">'
       +'<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px">⚙ 設定 GitHub Token</div>'
       +'<div style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:14px">'
         +'1. 前往 <b style=color:var(--gold)>github.com → Settings → Developer settings</b><br>'
