@@ -3029,10 +3029,13 @@ async function dipFetchHigh(){
   const btn = document.getElementById('dipHighBtn');
   if(btn){ btn.textContent='⏳'; btn.disabled=true; }
   const sym = getYahooTicker(lev.ticker);
-  const endpoints = ['https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=max',
-                     'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=max'];
+  // period1=0&period2=now 強制回傳「完整日線」；range=max 會被 Yahoo 對部分標的
+  // 默默降成週/月線（dataGranularity 變 1wk/1mo），月收盤的最大值會低於真實日收盤高。
+  const nowSec = Math.floor(Date.now()/1000);
+  const endpoints = ['https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&period1=0&period2='+nowSec,
+                     'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&period1=0&period2='+nowSec];
   const proxies = ['','https://corsproxy.io/?','https://api.allorigins.win/get?url='];
-  let closes = null;
+  let maxV=-1, maxT=null, seriesLast=null, cnt=0;
   outer: for(const ep of endpoints){
     for(const px of proxies){
       try{
@@ -3040,28 +3043,33 @@ async function dipFetchHigh(){
         const res=await fetch(url,{signal:AbortSignal.timeout(10000),cache:'no-store'});
         const raw=await res.json();
         const body=raw.contents?JSON.parse(raw.contents):raw;
-        const q=body?.chart?.result?.[0]?.indicators;
-        const arr=(q?.quote?.[0]?.close)||(q?.adjclose?.[0]?.adjclose)||null;
-        if(arr && arr.length){
-          const clean=arr.filter(v=>typeof v==='number'&&isFinite(v)&&v>0);
-          if(clean.length){ closes=clean; break outer; }
+        const r0=body?.chart?.result?.[0];
+        const gran=r0?.meta?.dataGranularity;
+        if(gran && gran!=='1d') continue;               // 被降成週/月線 → 拒收，換下一條通道
+        const arr=(r0?.indicators?.quote?.[0]?.close)||(r0?.indicators?.adjclose?.[0]?.adjclose)||null;
+        if(!arr || !arr.length) continue;
+        const ts=r0?.timestamp||[];
+        let mV=-1, mT=null, last=null, c=0;
+        for(let i=0;i<arr.length;i++){
+          const v=arr[i];
+          if(typeof v==='number'&&isFinite(v)&&v>0){ c++; last=v; if(v>mV){ mV=v; mT=ts[i]||null; } }
         }
+        if(c>0){ maxV=mV; maxT=mT; seriesLast=last; cnt=c; break outer; }
       }catch(e){}
     }
   }
   if(btn){ const b=document.getElementById('dipHighBtn'); if(b){ b.textContent='⟳'; b.disabled=false; } }
-  if(!closes){ showCloudStatus('⚠ 歷史資料抓取失敗，沿用原錨點', 'var(--gold)'); return; }
+  if(maxV<=0){ showCloudStatus('⚠ 歷史「日線」抓取失敗，沿用原錨點', 'var(--gold)'); return; }
   // 合理性檢查：資料量須足夠；數列尾端須貼近現價（防抓錯標的/髒資料把錨點卡在假高點）
-  if(closes.length < 100){ showCloudStatus('⚠ 歷史資料不足，沿用原錨點', 'var(--gold)'); return; }
-  const seriesLast = closes[closes.length-1];
+  if(cnt < 100){ showCloudStatus('⚠ 歷史資料不足，沿用原錨點', 'var(--gold)'); return; }
   if(lev.lastPrice && Math.abs(seriesLast-lev.lastPrice)/lev.lastPrice > 0.3){
     showCloudStatus('⚠ 歷史資料異常（與現價偏差過大），沿用原錨點', 'var(--gold)'); return;
   }
-  const maxClose = Math.max.apply(null, closes);
-  const newAnchor = Math.round(Math.max(maxClose, lev.lastPrice||0)*100)/100;
+  const newAnchor = Math.round(Math.max(maxV, lev.lastPrice||0)*100)/100;
   dipBuy.anchor = newAnchor;
   saveData(); renderDipBuy(true);
-  showCloudStatus('✓ 錨點已設為歷史收盤高 '+newAnchor.toFixed(2), 'var(--green)');
+  const dStr = maxT ? new Date(maxT*1000).toLocaleDateString('zh-TW') : '';
+  showCloudStatus('✓ 錨點＝歷史收盤高 '+newAnchor.toFixed(2)+(dStr&&maxV>=(lev.lastPrice||0)?'（'+dStr+'）':'（現價）'), 'var(--green)');
 }
 function dipSetTier(i,k,v){
   const n = parseFloat(v); const t = dipBuy.tiers[i];
