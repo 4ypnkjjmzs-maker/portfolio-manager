@@ -543,9 +543,9 @@ let exchangeRate = Number(localStorage.getItem('exchangeRate')) || 32;
 // 下跌加碼階梯（門檻按2倍槓桿校準：正二回檔約為大盤2倍，太淺會過早耗盡子彈）
 function defaultDipBuy(){
   return { anchor:null, reserve:0, tiers:[
-    {dd:20, pct:20, done:false},
-    {dd:35, pct:30, done:false},
-    {dd:50, pct:50, done:false}
+    {dd:30, pct:15,  done:false},
+    {dd:45, pct:45,  done:false},
+    {dd:60, pct:100, done:false}
   ]};
 }
 let dipBuy = defaultDipBuy();
@@ -3080,6 +3080,80 @@ function dipSetReserve(v){
   dipBuy.reserve = (isFinite(n) && n>0) ? n : 0;
   saveData(); renderDipBuy(true);
 }
+
+// ── 曝險控制器：輸入目標總曝險 → 反推 00631L↔正二現金 移轉額 ─────────────────
+// 桿子只用台股配對（美股 1 倍不動）；調升受保留現金封頂；目標不持久化（一次性計算器）。
+let expCtrlTarget = null;
+
+function expCtrlCalc(lev, cash, avail){
+  const tot = totalCurrent();
+  const dlv = (lev.leverage!=null?lev.leverage:1) - (cash.leverage!=null?cash.leverage:0);
+  if(tot<=0 || dlv<=0) return null;
+  const curExp = assets.reduce((s,x)=>s+x.current*(x.leverage!=null?x.leverage:1),0);
+  const curPct = curExp/tot*100;
+  const minPct = (curExp - lev.current*dlv)/tot*100;   // 正二全數賣回現金
+  const maxPct = (curExp + avail*dlv)/tot*100;         // 可動用現金全數投入（尊重保留線）
+  let eff=null, clamped=false, amt=null, afterPct=null;
+  if(expCtrlTarget!=null){
+    eff = Math.min(Math.max(expCtrlTarget, minPct), maxPct);
+    clamped = Math.abs(eff - expCtrlTarget) > 0.05;
+    amt = Math.round((eff - curPct)/100 * tot / dlv);
+    afterPct = (curExp + amt*dlv)/tot*100;
+  }
+  return {tot, dlv, curPct, minPct, maxPct, eff, clamped, amt, afterPct};
+}
+
+function expCtrlSet(v){
+  const n = parseFloat(v);
+  expCtrlTarget = (isFinite(n) && n>0) ? Math.round(n*10)/10 : null;
+  renderDipBuy(true);
+}
+
+function expCtrlExec(){
+  const lev = dipLevAsset(), cash = dipCashAsset(lev);
+  if(!lev || !cash) return;
+  const reserve = Math.max(0, dipBuy.reserve||0);
+  const avail = Math.max(0, cash.current - reserve);
+  const cc = expCtrlCalc(lev, cash, avail);
+  if(!cc || cc.amt==null || Math.abs(cc.amt)<1) return;
+  const buying = cc.amt > 0;
+  const a = Math.abs(cc.amt);
+  const newLev = lev.current + cc.amt, newCash = cash.current - cc.amt;
+  const pair = newLev + newCash;
+  const ratio = pair>0 ? Math.round(newLev/pair*100) : 0;
+  const inCycle = dipBuy.tiers.some(t=>t.done);
+  const warnLine = (!buying && inCycle)
+    ? '<br><b style="color:var(--red)">⚠ 加碼週期進行中（有階梯已執行、尚未創新高）：調降曝險會抵銷已執行的加碼。</b>'
+    : '';
+  customConfirm({
+    title:'🎯 調整總曝險至 '+cc.eff.toFixed(1)+'%',
+    message:(buying
+        ? '買入「'+lev.ticker+'」 <b style="color:var(--gold)">$'+fmt(a)+'</b>，從「'+cash.ticker+'」支付。'
+        : '賣出「'+lev.ticker+'」 <b style="color:var(--gold)">$'+fmt(a)+'</b>，回補「'+cash.ticker+'」。')
+      +'<br><br>總曝險 <b>'+cc.curPct.toFixed(1)+'%</b> → <b style="color:var(--gold)">'+cc.afterPct.toFixed(1)+'%</b>，配對比例約 <b>'+ratio+'% : '+(100-ratio)+'%</b>。<br>'
+      +'執行後加碼金餘額 <b>$'+fmt(newCash)+'</b>'+(reserve>0?'（保留線 $'+fmt(reserve)+'）':'')+'。'
+      +warnLine
+      +'<br><br><span style="color:var(--muted);font-size:11px">請先完成實際下單，此按鈕只更新帳面數字。</span>',
+    confirmText:'✓ 已下單，更新帳面',
+    confirmColor:'var(--gold)',
+    onConfirm: ()=>{
+      cash.current = newCash;
+      lev.current  = newLev;
+      if(buying){
+        if((cash.costBasis||0)>0) cash.costBasis = Math.max(0, cash.costBasis - a);
+        lev.costBasis = (lev.costBasis||0) + a;
+      } else {
+        lev.costBasis = Math.max(0, (lev.costBasis||0) - a);
+        if((cash.costBasis||0)>0) cash.costBasis = cash.costBasis + a;
+      }
+      if(lev.lastPrice) lev.shares = Math.max(0, Math.round((lev.shares||0) + cc.amt/lev.lastPrice));
+      expCtrlTarget = null;
+      buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
+      renderDipBuy(true);
+      showCloudStatus('🎯 曝險已調整至 '+cc.afterPct.toFixed(1)+'%', 'var(--green)');
+    }
+  });
+}
 function dipResetTier(i){
   const t = dipBuy.tiers[i];
   if(t){ t.done=false; saveData(); renderDipBuy(true); }
@@ -3096,11 +3170,16 @@ function execDipTier(i){
   const newLev = lev.current + amt, newCash = cash.current - amt;
   const pair = newLev + newCash;
   const ratio = pair>0 ? Math.round(newLev/pair*100) : 0;
-  const exp = pair>0 ? Math.round(newLev*2/pair*100) : 0;
+  // 全帳戶總曝險前後對照
+  const totAll = totalCurrent();
+  const curExpAll = assets.reduce((s,x)=>s+x.current*(x.leverage!=null?x.leverage:1),0);
+  const dLev = (lev.leverage!=null?lev.leverage:1)-(cash.leverage!=null?cash.leverage:0);
+  const expBefore = totAll>0 ? (curExpAll/totAll*100).toFixed(1) : '0';
+  const expAfter  = totAll>0 ? ((curExpAll + amt*dLev)/totAll*100).toFixed(1) : '0';
   customConfirm({
     title:'⚡ 執行第 '+(i+1)+' 階加碼',
     message:'從「'+cash.ticker+'」移轉 <b style="color:var(--gold)">$'+fmt(amt)+'</b> 至「'+lev.ticker+'」。<br><br>'
-      +'執行後配對比例約 <b>'+ratio+'% : '+(100-ratio)+'%</b>，台股組曝險約 <b>'+exp+'%</b>。<br>'
+      +'總曝險 <b>'+expBefore+'%</b> → <b style="color:var(--gold)">'+expAfter+'%</b>，配對比例約 <b>'+ratio+'% : '+(100-ratio)+'%</b>。<br>'
       +'執行後加碼金餘額 <b>$'+fmt(newCash)+'</b>'+(reserve>0?'（≥ 保留線 $'+fmt(reserve)+'）':'')+'。<br><br>'
       +'<span style="color:var(--muted);font-size:11px">請先完成實際下單，此按鈕只更新帳面數字。</span>',
     confirmText:'✓ 已下單，更新帳面',
@@ -3183,6 +3262,18 @@ function renderDipBuy(force){
   dipBuy.tiers.forEach((t,i)=>{
     const triggered = dd!=null && dd >= t.dd;
     const amt = Math.round(avail * t.pct/100);
+    // 執行後預覽（口徑：以「當下實際持倉」計，不疊前面未執行階的假設）
+    // 總曝險變化 = 移轉額 ×（槓桿標的倍數 − 現金倍數）；分母總資產不變
+    const _tot = totalCurrent();
+    const _curExpAll = assets.reduce((s,x)=>s+x.current*(x.leverage!=null?x.leverage:1),0);
+    const _dLev = (lev.leverage!=null?lev.leverage:1)-(cash.leverage!=null?cash.leverage:0);
+    const _expAfter = _tot>0 ? ((_curExpAll + amt*_dLev)/_tot*100) : 0;
+    const _pairL = lev.current + amt, _pairC = cash.current - amt, _pair = _pairL + _pairC;
+    const _ratioL = _pair>0 ? Math.round(_pairL/_pair*100) : 0;
+    const previewHtml = (t.done || amt<=0) ? '' :
+      '<div style="font-size:10px;color:'+(triggered?'var(--gold)':'var(--muted)')+';margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.05);font-family:\'Space Mono\',monospace">'
+      +'執行後總曝險 <b style="font-size:12px">'+_expAfter.toFixed(1)+'%</b>'
+      +'<span style="opacity:.7">　組內 '+_ratioL+':'+(100-_ratioL)+'</span></div>';
     let statusHtml;
     if(t.done){
       statusHtml = '<span style="font-size:11px;color:var(--green);font-weight:700">✓ 已執行</span>'
@@ -3210,10 +3301,51 @@ function renderDipBuy(force){
           +statusHtml
         +'</div>'
       +'</div>'
+      +previewHtml
       +'</div>';
   });
 
-  h += '<div style="font-size:10px;color:var(--muted);line-height:1.7;margin-top:10px">・投入%以「執行當下的可動用餘額（加碼金 − 保留現金）」計算，逐階遞減，永不動用保留額。<br>・門檻按 2 倍槓桿校準（正二回檔約為大盤 2 倍），過淺會太早耗盡子彈。<br>・執行第 3 階後配對可能達 7:3，組合淨曝險將暫時明顯超過 100%。</div>';
+  h += '<div style="font-size:10px;color:var(--muted);line-height:1.7;margin-top:10px">・投入%以「執行當下的可動用餘額（加碼金 − 保留現金）」計算，永不動用保留額。<br>・門檻按 2 倍槓桿校準：−30／−45／−60 約當大盤 −15／−22／−30，頻率約每 2 年／3–4 年／8–10 年一遇，過淺會太早耗盡子彈。<br>・第 3 階投入 100% 會將可動用加碼金全數投入，配對趨近 10:0（僅剩保留現金），組合淨曝險將明顯超過 100%，直到創新高重新武裝並調回配對。</div>';
+
+  // ── 曝險控制器 ──
+  const cc = expCtrlCalc(lev, cash, avail);
+  if(cc){
+    h += '<div class="section-label" style="margin-top:20px">曝險控制器</div>';
+    h += '<div class="action-card" style="padding:12px 14px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
+        +'<div style="font-size:11px;color:var(--muted)">現在總曝險 <b style="font-family:\'Space Mono\',monospace;font-size:14px;color:var(--text)">'+cc.curPct.toFixed(1)+'%</b></div>'
+        +'<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">目標 '
+          +'<input type="number" inputmode="decimal" step="any" value="'+(expCtrlTarget??'')+'" placeholder="—" onchange="expCtrlSet(this.value)"'
+          +' style="width:70px;background:#111;color:var(--gold2);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-family:\'Space Mono\',monospace;font-size:14px;font-weight:700;text-align:right">%'
+        +'</div>'
+      +'</div>'
+      +'<div style="font-size:9px;color:var(--muted);opacity:.6;margin-top:5px">可達範圍 '+cc.minPct.toFixed(1)+'%–'+cc.maxPct.toFixed(1)+'%（上限受保留現金限制）・桿子＝'+lev.ticker+'↔'+cash.ticker+'，不動美股</div>';
+    if(cc.amt!=null){
+      if(Math.abs(cc.amt) < 1){
+        h += '<div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--border);font-size:11px;color:var(--green)">✓ 已在目標曝險，無需調整</div>';
+      } else {
+        const buying = cc.amt > 0;
+        const a = Math.abs(cc.amt);
+        const clr = buying ? 'var(--green)' : 'var(--red)';
+        let sharesTxt = '';
+        if(lev.lastPrice && lev.lastPrice > 0){
+          const sh = a / lev.lastPrice;
+          const shD = sh>=10 ? Math.round(sh).toLocaleString() : sh>=1 ? sh.toFixed(1) : sh.toFixed(3);
+          sharesTxt = '（約 '+shD+' 股 @ NT$ '+lev.lastPrice.toLocaleString('zh-TW',{minimumFractionDigits:2,maximumFractionDigits:2})+'）';
+        }
+        h += '<div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--border)">'
+          +(cc.clamped?'<div style="font-size:10px;color:var(--gold);margin-bottom:6px">⚠ 目標 '+expCtrlTarget+'% 超出可達範圍，已封頂至 '+cc.eff.toFixed(1)+'%</div>':'')
+          +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
+            +'<div><span style="color:'+clr+';font-weight:700;font-size:13px">'+(buying?'↑ 買入':'↓ 賣出')+' '+lev.ticker+' <span style="font-family:\'Space Mono\',monospace">$'+fmt(a)+'</span></span>'
+              +'<div style="font-size:10px;color:var(--muted);margin-top:2px">'+(buying?'從「'+cash.ticker+'」支付':'回補「'+cash.ticker+'」')+sharesTxt+'</div>'
+              +'<div style="font-size:10px;color:var(--muted);margin-top:2px;font-family:\'Space Mono\',monospace">執行後總曝險 <b style="color:var(--gold2)">'+cc.afterPct.toFixed(1)+'%</b></div>'
+            +'</div>'
+            +'<button onclick="expCtrlExec()" style="background:var(--gold);color:#111;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">🎯 執行調整</button>'
+          +'</div></div>';
+      }
+    }
+    h += '</div>';
+  }
 
   el.innerHTML = h;
 }
