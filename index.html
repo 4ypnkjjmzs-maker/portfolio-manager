@@ -18,7 +18,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-seri
 .header-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;}
 .app-title{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:4px;color:var(--text2);text-transform:uppercase;}
 .total-label{font-size:11px;color:var(--muted);}
-.total-value{font-family:'Space Mono',monospace;font-size:26px;font-weight:700;color:var(--gold2);letter-spacing:-1px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.total-value{font-family:'Space Mono',monospace;font-size:26px;font-weight:700;color:var(--gold2);letter-spacing:-1px;white-space:nowrap;flex-shrink:0;}
 
 .tabs{display:flex;border-bottom:1px solid var(--border);padding:0 20px;background:var(--bg);position:sticky;top:var(--hdr-h,76px);z-index:99;overflow-x:auto;}
 .tab{font-size:11px;letter-spacing:2px;color:var(--muted);padding:13px 0;margin-right:24px;cursor:pointer;border-bottom:2px solid transparent;transition:all .1s;font-family:'Space Mono',monospace;text-transform:uppercase;white-space:nowrap;flex-shrink:0;}
@@ -134,6 +134,7 @@ input[type=range].grp-slider::-moz-range-thumb{ background:radial-gradient(circl
 .summary-card-value{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--gold2);}
 .summary-card-value.positive{color:var(--green);}
 .summary-card-value.negative{color:var(--red);}
+@media (max-width:360px){ .summary-card-value{font-size:16px;} }
 
 .action-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:10px;}
 .action-row{display:flex;justify-content:space-between;align-items:stretch;padding:11px 0;border-bottom:1px solid var(--border);min-height:62px;box-sizing:border-box;}
@@ -229,6 +230,16 @@ svg.donut{width:128px;height:128px;flex-shrink:0;transform:rotate(-90deg);filter
   .input-field  { font-size:14px !important; padding:12px !important; }
   .total-value  { font-size:30px !important; }
 }
+
+/* ── Back to top ─────────────────────────────────── */
+.top-btn{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));width:42px;height:42px;border-radius:50%;
+  background:rgba(21,21,21,.92);border:1px solid rgba(201,168,76,.45);color:var(--gold2);font-size:17px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:300;
+  box-shadow:0 4px 14px rgba(0,0,0,.55);opacity:0;pointer-events:none;transform:translateY(8px);
+  transition:opacity .2s,transform .2s;-webkit-tap-highlight-color:transparent;}
+.top-btn.show{opacity:1;pointer-events:auto;transform:translateY(0);}
+.top-btn:active{transform:scale(.92);}
+@media (min-width:768px){ .top-btn{right:calc(50% - 240px + 16px);} }
 
 /* ── Account switcher ───────────────────────────────── */
 .acct-bar{
@@ -487,6 +498,8 @@ input[type=number]{ -moz-appearance:textfield; appearance:textfield; }
 </div>
 
 </div><!-- end content -->
+
+<button class="top-btn" id="topBtn" onclick="scrollToTop()" aria-label="回到頂端" title="回到頂端">↑</button>
 
 <script>
 // ── Palette ───────────────────────────────────────────────────────────────────
@@ -1044,6 +1057,7 @@ function syncPctSlider(id, val){
 function refreshHoldings(){
   const total = totalCurrent();
   document.getElementById('totalDisplay').textContent = '$'+fmt(total);
+  fitTotalValue();
   const w = Math.min(withdraw(), total); // clamp: cannot withdraw more than total
   const after = Math.max(0, total - w);
 
@@ -2447,6 +2461,20 @@ function adjustContentPadding(){
     const isFixed = getComputedStyle(fixed).position==='fixed';
     shell.style.paddingTop = isFixed ? fixed.offsetHeight+'px' : '';
   }
+  fitTotalValue();
+}
+// 總資產數字自動縮字：以「完整顯示」為最高原則，空間不足時逐級縮小字級（下限 13px），永不截斷
+function fitTotalValue(){
+  const el = document.getElementById('totalDisplay');
+  if(!el || !el.parentElement) return;
+  el.style.fontSize = '';                              // 先還原成 CSS 預設（手機 26 / 桌面 30）
+  const row = el.parentElement;                        // 表頭那一列（數字＋右側按鈕欄）
+  let size = parseFloat(getComputedStyle(el).fontSize) || 26;
+  let guard = 18;
+  while(row.scrollWidth > row.clientWidth + 1 && size > 13 && guard-- > 0){
+    size -= 1;
+    el.style.fontSize = size + 'px';
+  }
 }
 // 重算時機：載入、視窗大小/方向改變、網頁字型載入完成、
 // 表頭高度變動（雲端狀態文字出現、帳戶改名、按鈕換行）由 ResizeObserver 自動接手
@@ -2459,6 +2487,24 @@ if(typeof ResizeObserver!=='undefined'){
   const _hd=document.querySelector('.header');    if(_hd) _layoutRO.observe(_hd);
 }
 adjustContentPadding();
+
+// ── 回到頂端 ──────────────────────────────────────────────────────────────────
+// 瞬間跳轉（沿用 switchTab 的既有決策：smooth scroll 在此 app 體感偏慢）
+function scrollToTop(){
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+}
+(function(){
+  const btn = document.getElementById('topBtn');
+  if(!btn) return;
+  const onScroll = ()=>{
+    const y = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    btn.classList.toggle('show', y > 300);
+  };
+  window.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+})();
 
 // ── updateCalc ────────────────────────────────────────────────────────────────
 function updateCalc(){
