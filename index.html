@@ -3019,6 +3019,50 @@ function dipSetAnchor(v){
   const n = parseFloat(v);
   if(n>0){ dipBuy.anchor = Math.round(n*100)/100; saveData(); renderDipBuy(true); }
 }
+
+// ── 手動抓歷史高點：上市以來「日收盤」最大值，錨點 = max(歷史收盤高, 現價) ──
+// 只在按下按鈕時執行（無自動偵測、無模式切換）。失敗一律沿用舊錨點。
+// 注意：抓高點「不會」重置已執行的階梯——發現更深的回檔≠價格收復新高，重置會導致重複掏子彈。
+async function dipFetchHigh(){
+  const lev = dipLevAsset();
+  if(!lev){ showCloudStatus('⚠ 找不到槓桿標的', 'var(--gold)'); return; }
+  const btn = document.getElementById('dipHighBtn');
+  if(btn){ btn.textContent='⏳'; btn.disabled=true; }
+  const sym = getYahooTicker(lev.ticker);
+  const endpoints = ['https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=max',
+                     'https://query2.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=max'];
+  const proxies = ['','https://corsproxy.io/?','https://api.allorigins.win/get?url='];
+  let closes = null;
+  outer: for(const ep of endpoints){
+    for(const px of proxies){
+      try{
+        const bust='&_t='+Date.now(); const ep2=ep+bust; const url=px?px+encodeURIComponent(ep2):ep2;
+        const res=await fetch(url,{signal:AbortSignal.timeout(10000),cache:'no-store'});
+        const raw=await res.json();
+        const body=raw.contents?JSON.parse(raw.contents):raw;
+        const q=body?.chart?.result?.[0]?.indicators;
+        const arr=(q?.quote?.[0]?.close)||(q?.adjclose?.[0]?.adjclose)||null;
+        if(arr && arr.length){
+          const clean=arr.filter(v=>typeof v==='number'&&isFinite(v)&&v>0);
+          if(clean.length){ closes=clean; break outer; }
+        }
+      }catch(e){}
+    }
+  }
+  if(btn){ const b=document.getElementById('dipHighBtn'); if(b){ b.textContent='⟳'; b.disabled=false; } }
+  if(!closes){ showCloudStatus('⚠ 歷史資料抓取失敗，沿用原錨點', 'var(--gold)'); return; }
+  // 合理性檢查：資料量須足夠；數列尾端須貼近現價（防抓錯標的/髒資料把錨點卡在假高點）
+  if(closes.length < 100){ showCloudStatus('⚠ 歷史資料不足，沿用原錨點', 'var(--gold)'); return; }
+  const seriesLast = closes[closes.length-1];
+  if(lev.lastPrice && Math.abs(seriesLast-lev.lastPrice)/lev.lastPrice > 0.3){
+    showCloudStatus('⚠ 歷史資料異常（與現價偏差過大），沿用原錨點', 'var(--gold)'); return;
+  }
+  const maxClose = Math.max.apply(null, closes);
+  const newAnchor = Math.round(Math.max(maxClose, lev.lastPrice||0)*100)/100;
+  dipBuy.anchor = newAnchor;
+  saveData(); renderDipBuy(true);
+  showCloudStatus('✓ 錨點已設為歷史收盤高 '+newAnchor.toFixed(2), 'var(--green)');
+}
 function dipSetTier(i,k,v){
   const n = parseFloat(v); const t = dipBuy.tiers[i];
   if(t && n>0 && n<=100){ t[k]=n; saveData(); renderDipBuy(true); }
@@ -3088,9 +3132,13 @@ function renderDipBuy(force){
   // 狀態卡：錨點 + 現價 + 回檔
   let h = '<div class="action-card" style="padding:14px 16px;margin-bottom:10px">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">'
-      +'<div><div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:3px">錨點（高點，自動上移）</div>'
+      +'<div><div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:3px">錨點（收盤高點，只升不降）</div>'
+        +'<div style="display:flex;align-items:center;gap:6px">'
         +'<input type="number" inputmode="decimal" step="any" value="'+(anchor??'')+'" placeholder="尚無" onchange="dipSetAnchor(this.value)"'
-        +' style="width:90px;background:#111;color:var(--gold2);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-family:\'Space Mono\',monospace;font-size:14px;font-weight:700"></div>'
+        +' style="width:90px;background:#111;color:var(--gold2);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-family:\'Space Mono\',monospace;font-size:14px;font-weight:700">'
+        +'<button id="dipHighBtn" onclick="dipFetchHigh()" title="抓取上市以來收盤最高價"'
+        +' style="width:30px;height:30px;border-radius:8px;background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.35);color:var(--gold);font-size:14px;cursor:pointer;flex-shrink:0">⟳</button>'
+        +'</div></div>'
       +'<div style="text-align:center"><div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:3px">'+lev.ticker+' 現價</div>'
         +'<div style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:var(--text)">'+(price?price.toFixed(2):'—')+'</div></div>'
       +'<div style="text-align:right"><div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:3px">目前回檔</div>'
