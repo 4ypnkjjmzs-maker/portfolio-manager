@@ -336,7 +336,8 @@ input[type=number]{ -moz-appearance:textfield; appearance:textfield; }
     <button class="acct-edit" id="acctEditBtn" onclick="editAccountName()" title="重新命名">✎</button>
   </div>
   <div class="tabs">
-  <div class="tab active" onclick="switchTab('holdings')">持倉</div>
+  <div class="tab active" onclick="switchTab('overview')">總覽</div>
+  <div class="tab" onclick="switchTab('holdings')">持倉</div>
   <div class="tab" onclick="switchTab('rebalance')">再平衡</div>
   <div class="tab" onclick="switchTab('dipbuy')">加碼</div>
   <div class="tab" onclick="switchTab('returns')">報酬試算</div>
@@ -346,7 +347,11 @@ input[type=number]{ -moz-appearance:textfield; appearance:textfield; }
 <div class="content">
 
 <!-- TAB 1: HOLDINGS -->
-<div class="tab-panel active" id="tab-holdings">
+<div class="tab-panel active" id="tab-overview">
+  <div id="overviewBody"></div>
+</div>
+
+<div class="tab-panel" id="tab-holdings">
   <div id="expSummary" style="margin-top:8px;border-radius:12px;overflow:hidden;border:1px solid var(--border)"></div>
   <div id="pnlSummary" style="display:none;background:var(--surface);border-radius:14px;padding:18px;margin-top:8px;border:1px solid var(--border)">
     <div style="font-size:13px;color:var(--gold2);letter-spacing:2px;margin-bottom:14px;font-weight:600">總損益</div>
@@ -517,8 +522,12 @@ function updateSliderFill(slider){
   const pct = (centerPx / trackW * 100).toFixed(2)+'%';
   slider.style.setProperty('--val', pct);
 }
+// 拖動時間戳：range 在 iOS 觸控下不會取得 focus，改用時間窗判定「拖動中」
+let _sliderTouch = 0;
+function sliderRecentlyActive(){ return Date.now() - _sliderTouch < 1200; }
 // Apply to all sliders on input
 document.addEventListener('input', e=>{
+  if(e.target && e.target.type==='range') _sliderTouch = Date.now();
   if(e.target && e.target.type==='range') updateSliderFill(e.target);
 });
 
@@ -542,10 +551,10 @@ const lockedGroups = new Set(); // Set<groupId>
 let exchangeRate = Number(localStorage.getItem('exchangeRate')) || 32;
 // 下跌加碼階梯（門檻按2倍槓桿校準：正二回檔約為大盤2倍，太淺會過早耗盡子彈）
 function defaultDipBuy(){
-  return { anchor:null, reserve:0, tiers:[
-    {dd:30, pct:15,  done:false},
-    {dd:45, pct:45,  done:false},
-    {dd:60, pct:100, done:false}
+  return { anchor:null, reserve:0, targetExp:100, tiers:[
+    {dd:30, exp:110, done:false},
+    {dd:45, exp:130, done:false},
+    {dd:60, exp:160, done:false}
   ]};
 }
 let dipBuy = defaultDipBuy();
@@ -572,6 +581,13 @@ let assets = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(n){ return Math.round(n).toLocaleString('zh-TW'); }
+// 股數顯示（全 app 統一規則：≥10 取整、1–10 一位小數、<1 三位小數）；無報價回傳 null
+function fmtShares(amtTWD, price){
+  if(!price || price<=0 || !isFinite(amtTWD)) return null;
+  const sh = Math.abs(amtTWD)/price;
+  const shD = sh>=10 ? Math.round(sh).toLocaleString() : sh>=1 ? sh.toFixed(1) : sh.toFixed(3);
+  return '約 '+shD+' 股 @ NT$ '+price.toLocaleString('zh-TW',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
 
 
 function totalCurrent(){ return assets.reduce((s,a)=>s+a.current,0); }
@@ -705,6 +721,8 @@ function toggleGroup(id){
 
 // ── Build asset cards inside groups ──────────────────────────────────────────
 function buildAssetCards(){
+  const _bLev = dipLevAsset(), _bCash = dipCashAsset(_bLev);
+  const _pairIds = new Set([_bLev&&_bLev.id, _bCash&&_bCash.id].filter(x=>x!=null));
   groups.forEach(g => {
     const container = document.getElementById('gassets-'+g.id);
     if(!container) return;
@@ -725,7 +743,7 @@ function buildAssetCards(){
           </div>
           <div style="display:flex;align-items:center;gap:6px;margin-right:6px">
             <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted)">群組內</span>
-            <span class="asset-pct-badge" id="badge-${a.id}">${a.innerPct}%</span>
+            <span class="asset-pct-badge" id="badge-${a.id}">${Math.round(a.innerPct)}%</span>
           </div>
           <button class="del-btn" onclick="removeAsset(${a.id})">×</button>
         </div>
@@ -744,11 +762,11 @@ function buildAssetCards(){
         </div>
         <div class="slider-row">
           <div class="slider-labels">
-            <span class="slider-lbl">群組內比例 <span id="lock-${a.id}" onclick="unlockInner(${a.id})" style="color:var(--gold2);font-size:10px;display:none;cursor:pointer"> 🔒已鎖定 (點此解鎖)</span></span>
-            <span class="slider-val" id="badge2-${a.id}">${a.innerPct}%</span>
+            <span class="slider-lbl">群組內比例 ${_pairIds.has(a.id)?'<span style="color:var(--gold2);font-size:10px"> 🎯拉動＝調整目標曝險</span>':''}<span id="lock-${a.id}" onclick="unlockInner(${a.id})" style="color:var(--gold2);font-size:10px;display:none;cursor:pointer"> 🔒已鎖定 (點此解鎖)</span></span>
+            <span class="slider-val" id="badge2-${a.id}">${Math.round(a.innerPct)}%</span>
           </div>
-          <input type="range" id="pctSlider-${a.id}" min="0" max="100" step="1" value="${a.innerPct}"
-            oninput="syncPctSlider(${a.id}, this.value)">
+          <input type="range" id="pctSlider-${a.id}" min="0" max="100" step="${_pairIds.has(a.id)?'0.1':'1'}" value="${a.innerPct}"
+            oninput="syncPctSlider(${a.id}, this.value)" ${_pairIds.has(a.id)?`onchange="pairSliderCommit(${a.id}, this.value)" title="拉動＝調整目標曝險，吸附整數%（放手生效）"`:''}>
         </div>
 
         <!-- Shares + Price row -->
@@ -764,8 +782,8 @@ function buildAssetCards(){
           <div style="flex:1.5;min-width:0">
             <div class="input-label">目前股價</div>
             <div class="price-row" style="margin:0;padding:6px 10px">
-              <div id="priceDisplay-${a.id}" style="flex:1;font-size:11px">
-                <span style="color:var(--muted)">— 點↻</span>
+              <div id="priceDisplay-${a.id}" onclick="showPriceModal(${a.id})" title="點擊手動輸入價格" style="flex:1;font-size:11px;cursor:pointer">
+                <span style="color:var(--muted)">— 點此輸入</span>
               </div>
               <button class="price-fetch-btn" id="pricebtn-${a.id}"
                 onclick="fetchOneAsset(${a.id})" style="width:22px;height:22px;font-size:12px">↻</button>
@@ -978,6 +996,45 @@ function unlockInner(id){
 
 function syncPctSlider(id, val){
   const idx = assetIndex(id); if(idx<0) return;
+  // 配對滑桿＝曝險手勢：拖動即時預覽對應曝險，放手（onchange→pairSliderCommit）才寫入目標
+  const _plev = dipLevAsset(), _pcash = dipCashAsset(_plev);
+  if(_plev && _pcash && (id===_plev.id || id===_pcash.id)){
+    const c = dipPairContext();
+    if(c){
+      const pairSum = (c.lev.innerPct + c.cash.innerPct) || 100;
+      const levShare = (id===c.lev.id) ? Number(val) : pairSum - Number(val);
+      const frac = Math.min(Math.max(levShare/pairSum, 0), 1);
+      const exp = c.fixedExp + c.pairEff*c.cashL + frac*c.pairEff*c.L;
+      // 吸附到最接近的「整數曝險」，並反推對應的組內占比 → 拉桿精準落在 …119/120/121…
+      const snapExp = Math.round(exp);
+      const snapShare = (c.pairEff>0 && c.L>0)
+        ? Math.min(Math.max((snapExp - c.fixedExp - c.pairEff*c.cashL)/(c.pairEff*c.L), 0), 1) * pairSum
+        : levShare;
+      const shownShare = (id===c.lev.id) ? snapShare : pairSum - snapShare;
+      const b = document.getElementById('badge2-'+id);
+      if(b) b.textContent = Math.round(shownShare)+'% ＝'+snapExp+'%曝險';
+      const other = (id===c.lev.id) ? c.cash : c.lev;
+      const os = document.getElementById('pctSlider-'+other.id);
+      if(os){ os.value = pairSum - shownShare; if(typeof updateSliderFill==='function') updateSliderFill(os); }
+      const ob = document.getElementById('badge2-'+other.id);
+      if(ob) ob.textContent = Math.round((pairSum - shownShare)*10)/10+'%';
+      // 目標金額即時預覽（口徑與 refreshHoldings 一致：after × 群組% × 組內占比）
+      const g = groups.find(x=>x.id===c.lev.groupId);
+      if(g){
+        const gAssets = assetsInGroup(g.id);
+        const innerSum = gAssets.reduce((s,x)=>s+x.innerPct,0) || 100;
+        const after = Math.max(0, totalCurrent() - withdraw());
+        const cashShare = pairSum - snapShare;
+        const tgtLev  = Math.round(after * (g.pct * (snapShare /innerSum*100) /100) / 100);
+        const tgtCash = Math.round(after * (g.pct * (cashShare/innerSum*100) /100) / 100);
+        const tl = document.getElementById('tgt-'+c.lev.id);
+        if(tl) tl.textContent = '目標 → $'+fmt(tgtLev);
+        const tc = document.getElementById('tgt-'+c.cash.id);
+        if(tc) tc.textContent = '目標 → $'+fmt(tgtCash);
+      }
+    }
+    return;
+  }
   const v = Number(val);
 
   const a = assets[idx];
@@ -1095,9 +1152,9 @@ function refreshHoldings(){
     const ps     = document.getElementById('pctSlider-'+a.id);
 
 
-    const psActive = ps&&(ps===document.activeElement);
-    if(badge)         badge.textContent  = a.innerPct+'%';
-    if(badge2&&!psActive) badge2.textContent = a.innerPct+'%';
+    const psActive = (ps&&(ps===document.activeElement)) || sliderRecentlyActive();
+    if(badge)         badge.textContent  = Math.round(a.innerPct)+'%';
+    if(badge2&&!psActive) badge2.textContent = Math.round(a.innerPct)+'%';
     if(ps&&!psActive) ps.value = a.innerPct;
     if(tgtEl) tgtEl.textContent = '目標 → $'+fmt(tgt);
     if(expEl){
@@ -1396,7 +1453,7 @@ function refreshRebalance(){
     <div class="summary-card"><div class="summary-card-label">需賣出</div><div class="summary-card-value negative">$${fmt(totalSell)}</div></div>
     <div class="summary-card"><div class="summary-card-label">需買入</div><div class="summary-card-value positive">$${fmt(totalBuy)}</div></div>
     <div class="summary-card"><div class="summary-card-label">現在曝險</div><div class="summary-card-value" style="color:${curExpColor}">${curExpPct.toFixed(1)}%</div></div>
-    <div class="summary-card"><div class="summary-card-label">再平衡後曝險</div><div class="summary-card-value" style="color:${tgtExpColor}">${tgtExpPct.toFixed(1)}%</div></div>`;
+    <div class="summary-card"><div class="summary-card-label">全部到位後曝險</div><div class="summary-card-value" style="color:${tgtExpColor}">${tgtExpPct.toFixed(1)}%</div></div>`;
 
   // Layer 1: Group rebalance
   let l1Html = '';
@@ -1475,7 +1532,7 @@ function refreshRebalance(){
       rowsHtml += `<div style="padding:12px 0;border-bottom:1px solid var(--border)">
         <!-- Line 1: ticker + % (left) ... 買賣金額 (right) -->
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
-          <div class="action-ticker ${diff>0?'buy':diff<0?'sell':'hold'}">${diff>0?'↑':diff<0?'↓':'—'} ${a.ticker} <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--muted)">${a.innerPct}%</span></div>
+          <div class="action-ticker ${diff>0?'buy':diff<0?'sell':'hold'}">${diff>0?'↑':diff<0?'↓':'—'} ${a.ticker} <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--muted)">${Math.round(a.innerPct)}%</span></div>
           ${(()=>{
             const g_rb2 = groups.find(x=>x.id===a.groupId);
             const isUSD_rb2 = g_rb2 && g_rb2.currency==='USD';
@@ -1935,11 +1992,12 @@ function switchTab(name){
       return; // block navigation
     }
   }
-  const names=['holdings','rebalance','dipbuy','returns','risk'];
+  const names=['overview','holdings','rebalance','dipbuy','returns','risk'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',names[i]===name));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+name));
   if(name==='risk') renderRisk();
   if(name==='dipbuy') renderDipBuy();
+  if(name==='overview') renderOverview();
   // Scroll to top instantly when switching tabs (smooth scroll felt laggy)
   window.scrollTo(0, 0);
   document.documentElement.scrollTop = 0;
@@ -2508,11 +2566,14 @@ function scrollToTop(){
 
 // ── updateCalc ────────────────────────────────────────────────────────────────
 function updateCalc(){
+  ensureDipMigration();
+  derivePairFromTargetExp();
   refreshHoldings();
   refreshGroupMini();
   refreshRebalance();
   refreshReturns();
   renderDipBuy();
+  renderOverview();
   saveData();
 }
 
@@ -2566,7 +2627,7 @@ function updatePriceDisplay(id){
     el.innerHTML='<span style="font-family:\'Space Mono\',monospace;font-size:14px;font-weight:700;color:var(--gold2)">'+priceStr+'</span>'
       +'<span style="font-size:10px;color:var(--muted)">'+ts+'</span>';
   } else {
-    el.innerHTML='<span style="font-size:11px;color:var(--muted)">— 點↻</span>';
+    el.innerHTML='<span style="font-size:11px;color:var(--muted)">— 點此輸入</span>';
   }
 }
 
@@ -2641,10 +2702,10 @@ function refreshGroupMini(){
     el.innerHTML='<div style="display:flex;gap:4px;justify-content:center;margin-bottom:12px">'+cols+'</div>'
       +bar
       +'<div style="display:flex;align-items:center;justify-content:center;gap:14px;text-align:center;background:rgba(76,175,130,.06);border:1px solid rgba(76,175,130,.18);border-radius:10px;padding:10px 16px">'
-        +'<div><div style="font-size:9px;color:var(--muted);margin-bottom:3px;letter-spacing:1px">現在總曝險</div>'
+        +'<div><div style="font-size:9px;color:var(--muted);margin-bottom:3px;letter-spacing:1px">當前曝險</div>'
           +'<div style="font-family:\'Space Mono\',monospace;font-size:19px;font-weight:700;color:var(--text2)">'+curExpPct+'%</div></div>'
         +'<div style="color:var(--green);font-size:16px;font-weight:700">→</div>'
-        +'<div><div style="font-size:9px;color:var(--muted);margin-bottom:3px;letter-spacing:1px">再平衡後</div>'
+        +'<div><div style="font-size:9px;color:var(--muted);margin-bottom:3px;letter-spacing:1px">改後曝險</div>'
           +'<div style="font-family:\'Space Mono\',monospace;font-size:19px;font-weight:700;color:var(--green);text-shadow:0 0 10px rgba(76,175,130,.5)">'+tgtExpPct+'%</div></div>'
       +'</div>';
   });
@@ -2781,6 +2842,52 @@ function doFullReset(){
 
 
 // ── Quick Rebalance hint (per-group) ─────────────────────────────────────────
+// 群組內目標與偏離（快速再平衡與總覽偏移監測共用同一來源）：
+// ・配對所在群組：直接解「目標曝險」——目前組大小下配對怎麼分，全帳戶曝險才 = targetExp
+// ・其他群組（曝險中性）：組目前總額 × 內部占比
+function groupInnerTargets(gid){
+  const ga = assetsInGroup(gid);
+  if(!ga.length) return null;
+  const innerSum = ga.reduce((s,a)=>s+a.innerPct,0)||1;
+  const gCurTotal = ga.reduce((s,a)=>s+a.current,0);
+  if(gCurTotal<=0) return null;
+  const _qLev = dipLevAsset(), _qCash = dipCashAsset(_qLev);
+  const isPairGroup = _qLev && _qCash && _qLev.groupId===gid;
+  let pairTargets = null;
+  if(isPairGroup && typeof dipBuy!=='undefined' && dipBuy.targetExp!=null){
+    const tot = totalCurrent();
+    const dlv = (_qLev.leverage!=null?_qLev.leverage:1)-(_qCash.leverage!=null?_qCash.leverage:0);
+    if(tot>0 && dlv>0){
+      let fixedExp = 0;
+      assets.forEach(x=>{
+        if(x===_qLev||x===_qCash) return;
+        const xl = (x.leverage!=null?x.leverage:1);
+        if(x.groupId===gid) fixedExp += Math.round(gCurTotal*(x.innerPct/innerSum)) * xl;
+        else fixedExp += x.current * xl;
+      });
+      const othersInGroup = ga.filter(x=>x!==_qLev&&x!==_qCash)
+        .reduce((s,x)=>s+Math.round(gCurTotal*(x.innerPct/innerSum)),0);
+      const pairBudget = gCurTotal - othersInGroup;
+      const cashL = (_qCash.leverage!=null?_qCash.leverage:0);
+      const needExpAmt = dipBuy.targetExp/100*tot;
+      let levTgt = Math.round((needExpAmt - fixedExp - pairBudget*cashL)/dlv);
+      levTgt = Math.min(Math.max(levTgt, 0), pairBudget);
+      pairTargets = {}; pairTargets[_qLev.id]=levTgt; pairTargets[_qCash.id]=pairBudget-levTgt;
+    }
+  }
+  const deviations = ga.map(a=>{
+    const tgtAmt = (pairTargets && pairTargets[a.id]!=null)
+      ? pairTargets[a.id]
+      : Math.round(gCurTotal * (a.innerPct/innerSum));
+    const diff = tgtAmt - a.current;
+    const tgtInner = tgtAmt/gCurTotal*100;
+    const actInner = a.current/gCurTotal*100;
+    const relDev = tgtInner>0 ? (actInner-tgtInner)/tgtInner*100 : 0;
+    return {a, tgtAmt, diff, relDev};
+  });
+  return { deviations, gCurTotal, isPairGroup };
+}
+
 function renderQuickRebal(gid, after){
   const el = document.getElementById('quickRebal-'+gid);
   if(!el) return;
@@ -2789,19 +2896,10 @@ function renderQuickRebal(gid, after){
   const ga = assetsInGroup(gid);
   if(!ga.length){ el.style.display='none'; return; }
 
-  // 純群組內部偏移：目標 = 群組目前總額 × 內部占比（不受台股:美股失衡影響）
+  const _gt = groupInnerTargets(gid);
+  if(!_gt){ el.style.display='none'; return; }
+  const { deviations, gCurTotal, isPairGroup } = _gt;
   const innerSum = ga.reduce((s,a)=>s+a.innerPct,0)||1;
-  const gCurTotal = ga.reduce((s,a)=>s+a.current,0);
-  if(gCurTotal<=0){ el.style.display='none'; return; }
-  const deviations = ga.map(a=>{
-    const tgtAmt = Math.round(gCurTotal * (a.innerPct/innerSum));
-    const diff = tgtAmt - a.current;
-    // 相對偏離 = (實際占比 − 目標占比) / 目標占比
-    const tgtInner = a.innerPct/innerSum*100;
-    const actInner = a.current/gCurTotal*100;
-    const relDev = tgtInner>0 ? (actInner-tgtInner)/tgtInner*100 : 0;
-    return {a, tgtAmt, diff, relDev};
-  });
 
   const maxRelDev = Math.max(...deviations.map(d=>Math.abs(d.relDev)));
 
@@ -2813,6 +2911,12 @@ function renderQuickRebal(gid, after){
 
   const sells = deviations.filter(d=>d.diff<0).sort((a,b)=>a.diff-b.diff);
   const buys  = deviations.filter(d=>d.diff>0).sort((a,b)=>b.diff-a.diff);
+
+  // 執行後總曝險：本組各標的回到組內目標（以本組現總額為基），其他群組維持現狀
+  const qrTot = totalCurrent();
+  const qrOtherExp = assets.filter(a=>a.groupId!==gid).reduce((s,a)=>s+a.current*(a.leverage!=null?a.leverage:1),0);
+  const qrGroupExpAfter = deviations.reduce((s,d)=>s+d.tgtAmt*((d.a.leverage!=null?d.a.leverage:1)),0);
+  const qrExpAfter = qrTot>0 ? (qrOtherExp+qrGroupExpAfter)/qrTot*100 : 0;
 
   // 單列渲染：金額（美股＝美元主顯＋台幣副顯）＋股數（規則與第二層一致；現金不顯示股數）
   const rowHtml = ({a,tgtAmt,diff}, isSell) => {
@@ -2850,7 +2954,7 @@ function renderQuickRebal(gid, after){
     }
     return `<div style="background:${bg};border:1px solid ${bdr};border-radius:8px;padding:8px 12px;margin-bottom:6px">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <div><span style="color:${clr};font-weight:700">${arrow} ${a.ticker}</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(a.innerPct/innerSum*100)}% → $${fmt(tgtAmt)}</div></div>
+        <div><span style="color:${clr};font-weight:700">${arrow} ${a.ticker}</span><div style="font-size:10px;color:var(--muted);margin-top:1px">目標 ${Math.round(tgtAmt/gCurTotal*100)}% → $${fmt(tgtAmt)}</div></div>
         <div style="text-align:right;flex-shrink:0;padding-left:10px">${amtHtml}<div style="font-size:10px;color:var(--muted);margin-top:1px">現 $${fmt(a.current)}</div></div>
       </div>
       ${sharesHtml}
@@ -2864,7 +2968,7 @@ function renderQuickRebal(gid, after){
   el.style.display='block';
   el.innerHTML=`<div style="background:${urgBg};border:1px solid ${urgBdr};border-radius:10px;padding:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:${urgency};text-transform:uppercase">⚡ 快速再平衡</div>
+      <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:${urgency};text-transform:uppercase">⚡ 快速再平衡（組內第二層）</div>
       <div style="font-family:'Space Mono',monospace;font-size:10px;color:${urgency}">最大偏移 ${pctDev}%</div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;padding:2px 0 12px 0">
@@ -2873,6 +2977,7 @@ function renderQuickRebal(gid, after){
     </div>
     ${sells.length?'<div style="font-family:monospace;font-size:9px;color:var(--red);letter-spacing:1px;margin-bottom:5px;text-transform:uppercase">賣出</div>'+sellHtml:''}
     ${buys.length?'<div style="font-family:monospace;font-size:9px;color:var(--green);letter-spacing:1px;margin-bottom:5px;text-transform:uppercase">買入</div>'+buyHtml:''}
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);font-size:10px;color:var(--muted);line-height:1.6">照這張卡下單後：總曝險 <b style="font-family:'Space Mono',monospace;color:var(--gold2);font-size:12px">${qrExpAfter.toFixed(1)}%</b>${isPairGroup?'（已直接對準目標曝險）':''}<br><span style="opacity:.7">這張卡只整理「本組內部」的比例，各群組之間的大小不動。要一次全部到位 → 看「總覽」的行動清單。</span></div>
     ${(typeof dipBuy!=='undefined' && dipBuy.tiers && dipBuy.tiers.some(t=>t.done) && ga.some(a=>(a.leverage!=null?a.leverage:1)>=2))?'<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(201,168,76,.2);font-size:10px;color:var(--gold)">⚡ 加碼階梯執行中，此偏移屬刻意加碼（回到新高後自動重新武裝）</div>':''}
   </div>`;
 }
@@ -3009,9 +3114,16 @@ function dipCashAsset(lev){
 function dipMaintainAnchor(){
   const lev = dipLevAsset();
   if(!lev || !lev.lastPrice) return;
-  if(!dipBuy.anchor || lev.lastPrice > dipBuy.anchor){
+  if(!dipBuy.anchor){
+    dipBuy.anchor = lev.lastPrice;           // 首次設錨：不動目標曝險
+  } else if(lev.lastPrice > dipBuy.anchor){
     dipBuy.anchor = lev.lastPrice;
-    dipBuy.tiers.forEach(t=>t.done=false); // 創新高 → 重新武裝
+    dipBuy.tiers.forEach(t=>t.done=false);   // 創新高 → 重新武裝
+    if(dipBuy.targetExp!=null && dipBuy.targetExp!==100){
+      dipBuy.targetExp = 100;                // 目標曝險回歸基準（收割訊號）
+      derivePairFromTargetExp();
+      if(typeof showCloudStatus==='function') showCloudStatus('⚡ 創新高：階梯重新武裝，目標曝險回到 100%','var(--green)');
+    }
   }
 }
 
@@ -3073,7 +3185,8 @@ async function dipFetchHigh(){
 }
 function dipSetTier(i,k,v){
   const n = parseFloat(v); const t = dipBuy.tiers[i];
-  if(t && n>0 && n<=100){ t[k]=n; saveData(); renderDipBuy(true); }
+  const max = k==='exp' ? 300 : 99;
+  if(t && n>0 && n<=max){ t[k]=n; saveData(); renderDipBuy(true); }
 }
 function dipSetReserve(v){
   const n = Math.round(parseFloat(v));
@@ -3081,9 +3194,314 @@ function dipSetReserve(v){
   saveData(); renderDipBuy(true);
 }
 
-// ── 曝險控制器：輸入目標總曝險 → 反推 00631L↔正二現金 移轉額 ─────────────────
-// 桿子只用台股配對（美股 1 倍不動）；調升受保留現金封頂；目標不持久化（一次性計算器）。
-let expCtrlTarget = null;
+// ═══ 總覽儀表板：回答一個問題——「我今天需要動手嗎？」═══════════════════════
+// 行動清單 = 兩層全解（每檔資產：現值 → 目標值），層只是標籤不是概念。
+// 觸發中的加碼階優先顯示（執行會更新目標，清單隨之自動重算）。
+// 總覽目標曝險拉桿：拖動即時同步數字框（預覽），放手才寫入
+function ovExpSliderInput(v){
+  const inp = document.getElementById('ovExpInput');
+  if(inp) inp.value = v;
+}
+
+function renderOverview(force){
+  const el = document.getElementById('overviewBody');
+  if(!el) return;
+  // 使用者正在總覽輸入時不重繪（避免打字/拖動被打斷）；force=true 為主動操作後重繪
+  if(!force && ((el.contains(document.activeElement) && document.activeElement.tagName==='INPUT') || sliderRecentlyActive())) return;
+  const total = totalCurrent();
+  const w = withdraw();
+  const after = Math.max(0, total - w);
+  let h = '';
+
+  if(total<=0){
+    el.innerHTML = '<div class="action-card" style="text-align:center;padding:28px;color:var(--muted);font-size:12px">尚無資產資料——到「持倉」頁輸入，或等待雲端同步。</div>';
+    return;
+  }
+
+  // ── 偏移監測資料（與快速再平衡同一來源）──
+  const layer1 = groups.map(g=>{
+    const gTot = assetsInGroup(g.id).reduce((s,a)=>s+a.current,0);
+    const curPctG = total>0 ? gTot/total*100 : 0;
+    const relDev = g.pct>0 ? (curPctG-g.pct)/g.pct*100 : 0;
+    return {g, curPctG, relDev};
+  });
+  const layer2 = groups.map(g=>{
+    const gt = groupInnerTargets(g.id);
+    return {g, devs: gt ? gt.deviations : []};
+  });
+  let worst = null;
+  layer1.forEach(r=>{ if(!worst || Math.abs(r.relDev)>Math.abs(worst.v)) worst={v:r.relDev, txt:'第一層 '+r.g.name+' '+(r.relDev>=0?'+':'')+r.relDev.toFixed(1)+'%'}; });
+  layer2.forEach(({g,devs})=>{ devs.forEach(d=>{ if(!worst || Math.abs(d.relDev)>Math.abs(worst.v)) worst={v:d.relDev, txt:'群組內 '+g.name+'・'+d.a.ticker+' '+(d.relDev>=0?'+':'')+d.relDev.toFixed(1)+'%'}; }); });
+  const worstAbs = worst ? Math.abs(worst.v) : 0;
+
+  // ── 警示橫幅 ──
+  if(worstAbs >= 30){
+    h += '<div class="action-card" style="padding:12px 16px;margin-bottom:12px;border-color:rgba(224,85,85,.45);background:rgba(224,85,85,.07)">'
+      +'<b style="color:var(--red);font-size:13px">🚨 偏移超過 30%，建議再平衡</b>'
+      +'<div style="font-size:11px;color:var(--red);opacity:.85;margin-top:3px">'+worst.txt+'</div></div>';
+  } else if(worstAbs >= 15){
+    h += '<div class="action-card" style="padding:12px 16px;margin-bottom:12px;border-color:rgba(201,168,76,.4);background:rgba(201,168,76,.06)">'
+      +'<b style="color:var(--gold);font-size:13px">⚠ 偏移達 15%，建議留意</b>'
+      +'<div style="font-size:11px;color:var(--gold);opacity:.85;margin-top:3px">'+worst.txt+'</div></div>';
+  } else {
+    h += '<div class="action-card" style="padding:10px 16px;margin-bottom:12px;border-color:rgba(76,175,130,.3)">'
+      +'<b style="color:var(--green);font-size:12px">✓ 偏移輕微，暫可不調整</b></div>';
+  }
+
+  // ── 總資產＋加碼金＋總曝險 ──
+  const curExpAll = assets.reduce((s,x)=>s+x.current*(x.leverage!=null?x.leverage:1),0);
+  const curPct = curExpAll/total*100;
+  const tgtPct = (typeof dipBuy!=='undefined' && dipBuy.targetExp!=null) ? dipBuy.targetExp : 100;
+  const _oCashA = dipCashAsset(dipLevAsset());
+  const cashAmtOv = _oCashA ? _oCashA.current : 0;
+  const cashPctOv = total>0 ? cashAmtOv/total*100 : 0;
+  const expLvlClr = curPct>110 ? 'var(--red)' : curPct>100 ? 'var(--gold)' : 'var(--green)';
+  h += '<div class="action-card" style="padding:16px;margin-bottom:12px">'
+    +'<div style="font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">總資產</div>'
+    +'<div style="font-family:\'Space Mono\',monospace;font-size:30px;font-weight:700;color:var(--gold2);letter-spacing:-1px">$'+fmt(total)+'</div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;background:rgba(76,175,130,.06);border:1px solid rgba(76,175,130,.2);border-radius:10px;padding:10px 14px;margin-top:12px">'
+      +'<div><div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:2px">加碼金</div>'
+      +'<div style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:var(--green)">$'+fmt(cashAmtOv)+'</div></div>'
+      +'<div style="text-align:right"><div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:2px">佔總資產</div>'
+      +'<div style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:var(--green)">'+Math.round(cashPctOv)+'%</div></div>'
+    +'</div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:14px">'
+      +'<span style="font-size:11px;color:var(--muted);letter-spacing:2px">總曝險</span>'
+      +'<b style="font-family:\'Space Mono\',monospace;font-size:20px;color:'+expLvlClr+'">'+curPct.toFixed(1)+'%</b>'
+    +'</div>'
+    +'<div style="margin-top:8px;height:6px;border-radius:3px;background:#1c1c1c;position:relative;overflow:hidden">'
+      +'<div style="position:absolute;left:0;top:0;bottom:0;width:'+Math.min(100,curPct/2)+'%;background:'+expLvlClr+';border-radius:3px;opacity:.85"></div>'
+      +'<div style="position:absolute;top:0;bottom:0;left:50%;width:1px;background:rgba(255,255,255,.25)"></div>'
+      +'<div style="position:absolute;top:0;bottom:0;left:'+Math.min(100,tgtPct/2)+'%;width:2px;background:var(--gold2)"></div>'
+    +'</div>'
+    +'<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted);opacity:.5;margin-top:3px"><span>0%</span><span>100%</span><span>200%</span></div>'
+    +(function(){
+      // 目標曝險拉桿＋精準輸入（第三個入口，同樣匯入 dipSetTargetExp 單一自由度）
+      const pc = dipPairContext();
+      if(!pc) return '';
+      const sMin = Math.ceil(pc.minExp), sMax = Math.floor(pc.maxExp);
+      return '<div style="display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.06)">'
+        +'<span style="font-size:11px;color:var(--muted);letter-spacing:2px;flex-shrink:0">目標曝險</span>'
+        +'<input type="range" id="ovExpSlider" min="'+sMin+'" max="'+sMax+'" step="1" value="'+Math.round(tgtPct)+'"'
+        +' oninput="ovExpSliderInput(this.value)" onchange="dipSetTargetExp(this.value)" style="flex:1;min-width:80px">'
+        +'<input type="number" id="ovExpInput" inputmode="decimal" step="any" value="'+tgtPct+'"'
+        +' onchange="dipSetTargetExp(this.value)"'
+        +' style="width:64px;background:#111;color:var(--gold2);border:1px solid var(--border);border-radius:8px;padding:6px 6px;font-family:\'Space Mono\',monospace;font-size:13px;font-weight:700;text-align:right">'
+        +'<span style="font-size:11px;color:var(--muted)">%</span></div>'
+        +'<div style="font-size:9px;color:var(--muted);opacity:.5;margin-top:4px;text-align:right">可達 '+sMin+'–'+sMax+'%・拉桿整數、輸入框可到 0.1・改動即全系統同步</div>';
+    })()
+    +'</div>';
+
+  // ── 偏移監測面板 ──
+  const devClr = v => Math.abs(v)>=30 ? 'var(--red)' : Math.abs(v)>=15 ? 'var(--gold)' : '#5b9bd5';
+  h += '<div class="section-label">偏移監測（相對偏離）</div>'
+    +'<div class="action-card" style="padding:12px 14px;margin-bottom:12px">'
+    +'<div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:7px">第一層 '+groups.map(g=>g.name).join('：')+'</div>';
+  layer1.forEach(r=>{
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;background:#161616;border-radius:9px;padding:9px 12px;margin-bottom:6px">'
+      +'<span style="font-weight:700;font-size:13px;color:var(--text)">'+r.g.name+'</span>'
+      +'<span style="font-family:\'Space Mono\',monospace;font-size:12px;color:var(--muted)">'+r.curPctG.toFixed(1)+'% <span style="opacity:.6">/ 目標 '+r.g.pct+'%</span></span>'
+      +'<span style="font-family:\'Space Mono\',monospace;font-size:12px;font-weight:700;color:'+devClr(r.relDev)+';border:1px solid '+devClr(r.relDev)+';border-radius:8px;padding:3px 9px;opacity:.9">'+(r.relDev>=0?'+':'')+r.relDev.toFixed(1)+'%</span>'
+      +'</div>';
+  });
+  h += '<div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin:10px 0 7px">第二層 群組內部</div>';
+  layer2.forEach(({g,devs})=>{
+    if(!devs.length) return;
+    h += '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:7px">'
+      +'<span style="font-size:12px;font-weight:700;color:'+groupColor(g.id)+';flex-shrink:0">'+g.name+'</span>';
+    devs.forEach(d=>{
+      const c = devClr(d.relDev);
+      h += '<span style="font-family:\'Space Mono\',monospace;font-size:11px;font-weight:700;color:'+c+';border:1px solid '+c+';border-radius:8px;padding:4px 9px;opacity:.9">'+d.a.ticker+' '+(d.relDev>=0?'+':'')+d.relDev.toFixed(1)+'%</span>';
+    });
+    h += '</div>';
+  });
+  h += '</div>';
+
+  let ladderHtml = '';
+  if(typeof dipBuy!=='undefined' && dipBuy.tiers){
+    const lev = dipLevAsset();
+    const anchor = dipBuy.anchor;
+    const dd = (lev && lev.lastPrice && anchor) ? Math.max(0,(anchor-lev.lastPrice)/anchor*100) : null;
+    const pend = dipBuy.tiers.map((t,i)=>({t,i})).filter(x=>!x.t.done && dd!=null && dd>=x.t.dd && x.t.exp>curPct+0.05);
+    if(pend.length){
+      const p = pend[0];
+      ladderHtml = '<div class="action-card" style="padding:12px 14px;margin-bottom:12px;border-color:rgba(224,85,85,.45);background:rgba(224,85,85,.06)">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
+        +'<div><b style="color:var(--red);font-size:13px">⚡ 第 '+(p.i+1)+' 階加碼已觸發</b>'
+        +'<div style="font-size:10px;color:var(--muted);margin-top:2px">回檔 '+dd.toFixed(1)+'% ≥ '+p.t.dd+'%・執行會把目標曝險帶到 '+p.t.exp+'%，下方清單隨之更新</div></div>'
+        +'<button onclick="execDipTier('+p.i+')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">⚡ 執行</button>'
+        +'</div></div>';
+    }
+  }
+  h += ladderHtml;
+
+  // 日常清單＝各群組「內部」修正（與各組快速再平衡完全同源）；
+  // 跨群組大搬移（台股↔美股）與提領規劃屬年度作業 → 「再平衡」頁。
+  const trades = [];
+  groups.forEach(gg=>{
+    const gt = groupInnerTargets(gg.id);
+    if(!gt) return;
+    gt.deviations.forEach(d=>{
+      if(Math.abs(d.diff) >= Math.max(1000, total*0.003)) trades.push(d);
+    });
+  });
+  trades.sort((x,y)=>x.diff-y.diff);
+
+  if(!trades.length && !ladderHtml){
+    h += '<div class="action-card" style="text-align:center;padding:26px 16px;margin-bottom:12px">'
+      +'<div style="font-size:26px;margin-bottom:6px">✓</div>'
+      +'<div style="color:var(--green);font-weight:700;font-size:14px">一切在軌道上</div>'
+      +'<div style="font-size:10px;color:var(--muted);margin-top:4px">曝險貼近目標、沒有觸發中的加碼階——今天無事可做。</div>'
+      +'</div>';
+  } else if(trades.length){
+    h += '<div class="section-label">今日行動清單（'+trades.length+' 筆・各組內部修正）</div>';
+    // 分區塊：正二所在群組優先（日常關注），其他群組（如美股，低頻再平衡）排後
+    const _oLev = dipLevAsset();
+    const pairGid = _oLev ? _oLev.groupId : null;
+    const orderedGids = [];
+    if(pairGid!=null && trades.some(t=>t.a.groupId===pairGid)) orderedGids.push(pairGid);
+    groups.forEach(gg=>{ if(gg.id!==pairGid && trades.some(t=>t.a.groupId===gg.id)) orderedGids.push(gg.id); });
+    trades.forEach(t=>{ if(!orderedGids.includes(t.a.groupId)) orderedGids.push(t.a.groupId); });
+    orderedGids.forEach(gid=>{
+      const gg = groups.find(x=>x.id===gid);
+      const gTrades = trades.filter(t=>t.a.groupId===gid);
+      h += '<div style="display:flex;align-items:center;gap:7px;margin:12px 0 7px">'
+        +'<span style="width:8px;height:8px;border-radius:3px;background:'+groupColor(gid)+';box-shadow:0 0 6px '+groupColor(gid)+'"></span>'
+        +'<span style="font-size:12px;color:var(--text2);font-weight:700;letter-spacing:2px">'+(gg?gg.name:'其他')+'</span>'
+        +'<span style="font-size:10px;color:var(--muted)">'+gTrades.length+' 筆</span></div>';
+      gTrades.forEach(({a,tgtAmt,diff})=>{
+      const sell = diff<0;
+      const clr = sell?'var(--red)':'var(--green)';
+      const bg  = sell?'rgba(224,85,85,.08)':'rgba(76,175,130,.07)';
+      const bdr = sell?'rgba(224,85,85,.25)':'rgba(76,175,130,.25)';
+      const g = groups.find(x=>x.id===a.groupId);
+      const isUSD = g && g.currency==='USD';
+      const absD = Math.abs(diff);
+      let amtHtml;
+      if(isUSD){
+        const dUSD = absD/(exchangeRate||32);
+        amtHtml = '<div style="font-family:\'Space Mono\',monospace;font-size:14px;font-weight:700;color:'+clr+'">'+(sell?'-':'+')+'$'+Math.round(dUSD).toLocaleString('en-US')+' <span style="font-size:9px;opacity:.6">USD</span></div>'
+          +'<div style="font-family:\'Space Mono\',monospace;font-size:10px;color:'+clr+';opacity:.6">'+(sell?'-':'+')+'NT$'+fmt(absD)+'</div>';
+      } else {
+        amtHtml = '<div style="font-family:\'Space Mono\',monospace;font-size:14px;font-weight:700;color:'+clr+'">'+(sell?'-':'+')+'$'+fmt(absD)+'</div>';
+      }
+      const isCashAsset = (a.leverage!=null?a.leverage:1)===0;
+      let shareLine = '';
+      if(!isCashAsset){
+        const shTxt = a.lastPrice
+          ? (function(){ const sh=(isUSD?absD/(exchangeRate||32):absD)/a.lastPrice;
+              const d=sh>=10?Math.round(sh).toLocaleString():sh>=1?sh.toFixed(1):sh.toFixed(3);
+              return '約 '+d+' 股 @ '+(isUSD?'USD $'+a.lastPrice.toFixed(2):'NT$ '+a.lastPrice.toLocaleString('zh-TW',{minimumFractionDigits:2,maximumFractionDigits:2})); })()
+          : '<span style="opacity:.5">輸入股價可顯示股數</span>';
+        shareLine = '<div style="font-size:10px;color:var(--muted);margin-top:3px;font-family:\'Space Mono\',monospace">'+shTxt+'</div>';
+      }
+      h += '<div style="background:'+bg+';border:1px solid '+bdr+';border-radius:10px;padding:10px 13px;margin-bottom:7px">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'
+        +'<div><span style="color:'+clr+';font-weight:700;font-size:14px">'+(sell?'↓ 賣出':'↑ 買入')+' '+a.ticker+'</span>'
+          +'<div style="font-size:10px;color:var(--muted);margin-top:2px">目標 $'+fmt(tgtAmt)+'・現 $'+fmt(a.current)+'</div>'
+          +shareLine
+        +'</div>'
+        +'<div style="text-align:right;flex-shrink:0">'+amtHtml+'</div>'
+        +'</div></div>';
+      });
+    });
+    h += '<div style="font-size:10px;color:var(--muted);line-height:1.7;margin-top:6px">・此清單＝各群組「內部」的日常修正，群組之間的大小不動；照單下完，總曝險＝目標 '+tgtPct.toFixed(1)+'%。完成下單後到「持倉」頁更新金額。<br>・年度大平衡（'+groups.map(g=>g.name).join('↔')+' 搬移、提領規劃）→ 「再平衡」頁；調規則（目標曝險／階梯／保留現金）→ 「加碼」頁。</div>';
+  } else {
+    h += '<div style="font-size:11px;color:var(--muted);margin-top:4px">配置已貼近目標，先處理上方加碼階即可。</div>';
+  }
+
+  el.innerHTML = h;
+  const _ovS = document.getElementById('ovExpSlider');
+  if(_ovS && typeof updateSliderFill==='function') updateSliderFill(_ovS);
+}
+
+// ═══ 單一自由度架構：全系統只有一個目標——targetExp（目標總曝險%）═══════════
+// 00631L:正二現金 的 innerPct 不再是使用者設定，而是由 targetExp 反推的「推導值」。
+// 再平衡、加碼階梯、曝險控制器全部指向同一個終點，結構上不可能互相矛盾。
+
+// 配對上下文：固定曝險（配對以外資產）、配對合計占比、可達曝險範圍（配置層級）
+function dipPairContext(){
+  const lev=dipLevAsset(), cash=dipCashAsset(lev);
+  if(!lev||!cash) return null;
+  const levL=(lev.leverage!=null?lev.leverage:1), cashL=(cash.leverage!=null?cash.leverage:0);
+  const L=levL-cashL; if(L<=0) return null;
+  let fixedExp=0, pairEff=0;
+  assets.forEach(x=>{
+    const e=assetEffectivePct(x), xl=(x.leverage!=null?x.leverage:1);
+    if(x===lev||x===cash) pairEff+=e; else fixedExp+=e*xl;
+  });
+  return {lev,cash,levL,cashL,L,fixedExp,pairEff,
+          minExp:fixedExp+pairEff*cashL, maxExp:fixedExp+pairEff*levL};
+}
+
+// 目標曝險 → 反推配對 innerPct（例：100%→50:50、120.4%→67:33）
+function derivePairFromTargetExp(){
+  if(typeof dipBuy==='undefined'||!dipBuy||dipBuy.targetExp==null) return;
+  const c=dipPairContext(); if(!c||c.pairEff<=0) return;
+  const eff=Math.min(Math.max(dipBuy.targetExp,c.minExp),c.maxExp);
+  const effLev=(eff-c.fixedExp-c.pairEff*c.cashL)/c.L;
+  const frac=Math.min(Math.max(effLev/c.pairEff,0),1);
+  const pairSum=c.lev.innerPct+c.cash.innerPct;
+  c.lev.innerPct=Math.round(pairSum*frac*100)/100;
+  c.cash.innerPct=Math.round((pairSum-c.lev.innerPct)*100)/100;
+  refreshPairSliderUI(c);
+}
+
+// 推導後同步滑桿顯示（滑桿為唯讀展示）
+function refreshPairSliderUI(c){
+  if(sliderRecentlyActive()) return;   // 拖動中：不奪回拉桿（放手 commit 會清旗標後重定位）
+  c = c || dipPairContext(); if(!c) return;
+  [c.lev,c.cash].forEach(a=>{
+    const s=document.getElementById('pctSlider-'+a.id);
+    if(s){ s.value=a.innerPct; if(typeof updateSliderFill==='function') updateSliderFill(s); }
+    const b=document.getElementById('badge2-'+a.id);
+    if(b) b.textContent=Math.round(a.innerPct)+'%';
+  });
+}
+
+// 舊資料遷移：無 targetExp → 由現有配置無損換算；無 exp → 帶入預設 110/130/160
+function ensureDipMigration(){
+  if(typeof dipBuy==='undefined'||!dipBuy){ dipBuy=defaultDipBuy(); return; }
+  if(!dipBuy.tiers||!dipBuy.tiers.length) dipBuy.tiers=defaultDipBuy().tiers;
+  const defE=[110,130,160];
+  dipBuy.tiers.forEach((t,i)=>{ if(t.exp==null) t.exp=(defE[i]!=null?defE[i]:160); });
+  if(dipBuy.reserve==null) dipBuy.reserve=0;
+  if(dipBuy.targetExp==null){
+    const e=assets.reduce((s,x)=>s+assetEffectivePct(x)*(x.leverage!=null?x.leverage:1),0);
+    dipBuy.targetExp=Math.round((e>0?e:100)*10)/10;
+  }
+}
+
+// 使用者改目標曝險（唯一入口；含配置層級可達範圍夾限）
+// 拉桿放手 → 換算曝險 → 寫入唯一自由度（拉桿是目標曝險的另一種輸入手勢）
+function pairSliderCommit(id, val){
+  _sliderTouch = 0;
+  const c = dipPairContext(); if(!c) return;
+  if(id!==c.lev.id && id!==c.cash.id) return;
+  const pairSum = (c.lev.innerPct + c.cash.innerPct) || 100;
+  const levShare = (id===c.lev.id) ? Number(val) : pairSum - Number(val);
+  const frac = Math.min(Math.max(levShare/pairSum, 0), 1);
+  const exp = c.fixedExp + c.pairEff*c.cashL + frac*c.pairEff*c.L;
+  dipSetTargetExp(String(Math.round(exp)));   // 吸附整數曝險（與拖動預覽一致）
+  if(typeof showCloudStatus==='function') showCloudStatus('🎯 目標曝險 → '+dipBuy.targetExp.toFixed(1)+'%（由拉桿設定）', 'var(--gold)');
+}
+
+function dipSetTargetExp(v){
+  _sliderTouch = 0;
+  const n=parseFloat(v);
+  if(!isFinite(n)||n<=0){ renderDipBuy(true); renderOverview(true); return; }
+  const c=dipPairContext();
+  let t=Math.round(n*10)/10;
+  if(c) t=Math.min(Math.max(t,Math.round(c.minExp*10)/10),Math.round(c.maxExp*10)/10);
+  dipBuy.targetExp=t;
+  derivePairFromTargetExp();
+  updateCalc();
+  renderDipBuy(true);
+  renderOverview(true);
+}
+
+// ── 曝險控制器：目標曝險（唯一自由度）的操作台 ─────────────────────────────
+// 目標持久化於 dipBuy.targetExp；配對 innerPct 由其推導；此處顯示現在→目標的移轉額。
 
 function expCtrlCalc(lev, cash, avail){
   const tot = totalCurrent();
@@ -3094,19 +3512,13 @@ function expCtrlCalc(lev, cash, avail){
   const minPct = (curExp - lev.current*dlv)/tot*100;   // 正二全數賣回現金
   const maxPct = (curExp + avail*dlv)/tot*100;         // 可動用現金全數投入（尊重保留線）
   let eff=null, clamped=false, amt=null, afterPct=null;
-  if(expCtrlTarget!=null){
-    eff = Math.min(Math.max(expCtrlTarget, minPct), maxPct);
-    clamped = Math.abs(eff - expCtrlTarget) > 0.05;
+  if(dipBuy.targetExp!=null){
+    eff = Math.min(Math.max(dipBuy.targetExp, minPct), maxPct);
+    clamped = Math.abs(eff - dipBuy.targetExp) > 0.05;
     amt = Math.round((eff - curPct)/100 * tot / dlv);
     afterPct = (curExp + amt*dlv)/tot*100;
   }
   return {tot, dlv, curPct, minPct, maxPct, eff, clamped, amt, afterPct};
-}
-
-function expCtrlSet(v){
-  const n = parseFloat(v);
-  expCtrlTarget = (isFinite(n) && n>0) ? Math.round(n*10)/10 : null;
-  renderDipBuy(true);
 }
 
 function expCtrlExec(){
@@ -3128,8 +3540,8 @@ function expCtrlExec(){
   customConfirm({
     title:'🎯 調整總曝險至 '+cc.eff.toFixed(1)+'%',
     message:(buying
-        ? '買入「'+lev.ticker+'」 <b style="color:var(--gold)">$'+fmt(a)+'</b>，從「'+cash.ticker+'」支付。'
-        : '賣出「'+lev.ticker+'」 <b style="color:var(--gold)">$'+fmt(a)+'</b>，回補「'+cash.ticker+'」。')
+        ? '買入「'+lev.ticker+'」 <b style="color:var(--gold)">$'+fmt(a)+'</b>'+(fmtShares(a,lev.lastPrice)?'（'+fmtShares(a,lev.lastPrice)+'）':'')+'，從「'+cash.ticker+'」支付。'
+        : '賣出「'+lev.ticker+'」 <b style="color:var(--gold)">$'+fmt(a)+'</b>'+(fmtShares(a,lev.lastPrice)?'（'+fmtShares(a,lev.lastPrice)+'）':'')+'，回補「'+cash.ticker+'」。')
       +'<br><br>總曝險 <b>'+cc.curPct.toFixed(1)+'%</b> → <b style="color:var(--gold)">'+cc.afterPct.toFixed(1)+'%</b>，配對比例約 <b>'+ratio+'% : '+(100-ratio)+'%</b>。<br>'
       +'執行後加碼金餘額 <b>$'+fmt(newCash)+'</b>'+(reserve>0?'（保留線 $'+fmt(reserve)+'）':'')+'。'
       +warnLine
@@ -3147,7 +3559,6 @@ function expCtrlExec(){
         if((cash.costBasis||0)>0) cash.costBasis = cash.costBasis + a;
       }
       if(lev.lastPrice) lev.shares = Math.max(0, Math.round((lev.shares||0) + cc.amt/lev.lastPrice));
-      expCtrlTarget = null;
       buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
       renderDipBuy(true);
       showCloudStatus('🎯 曝險已調整至 '+cc.afterPct.toFixed(1)+'%', 'var(--green)');
@@ -3165,37 +3576,47 @@ function execDipTier(i){
   const t = dipBuy.tiers[i]; if(!t || t.done) return;
   const reserve = Math.max(0, dipBuy.reserve||0);
   const avail = Math.max(0, cash.current - reserve);
-  const amt = Math.round(avail * t.pct/100);
+  const tot = totalCurrent();
+  const dlv = (lev.leverage!=null?lev.leverage:1)-(cash.leverage!=null?cash.leverage:0);
+  if(tot<=0 || dlv<=0) return;
+  const curExpAll = assets.reduce((s,x)=>s+x.current*(x.leverage!=null?x.leverage:1),0);
+  const curPct = curExpAll/tot*100;
+  const rawAmt = Math.round(Math.max(0, t.exp - curPct)/100*tot/dlv);
+  const amt = Math.min(rawAmt, avail);
+  if(rawAmt<=0){ showCloudStatus('✓ 目前曝險已達此階目標（'+t.exp+'%）', 'var(--green)'); return; }
   if(amt<=0){ showCloudStatus(reserve>0?'⚠ 可動用加碼金為 0（保留 $'+fmt(reserve)+'）':'⚠ 加碼金餘額為 0', 'var(--gold)'); return; }
+  const achieved = Math.round(((curExpAll + amt*dlv)/tot*100)*10)/10;
+  const clampNote = rawAmt>avail ? '<br><b style="color:var(--gold)">⚠ 受保留線限制，本階只到 '+achieved.toFixed(1)+'%（原目標 '+t.exp+'%）。</b>' : '';
   const newLev = lev.current + amt, newCash = cash.current - amt;
   const pair = newLev + newCash;
   const ratio = pair>0 ? Math.round(newLev/pair*100) : 0;
-  // 全帳戶總曝險前後對照
-  const totAll = totalCurrent();
-  const curExpAll = assets.reduce((s,x)=>s+x.current*(x.leverage!=null?x.leverage:1),0);
-  const dLev = (lev.leverage!=null?lev.leverage:1)-(cash.leverage!=null?cash.leverage:0);
-  const expBefore = totAll>0 ? (curExpAll/totAll*100).toFixed(1) : '0';
-  const expAfter  = totAll>0 ? ((curExpAll + amt*dLev)/totAll*100).toFixed(1) : '0';
   customConfirm({
     title:'⚡ 執行第 '+(i+1)+' 階加碼',
-    message:'從「'+cash.ticker+'」移轉 <b style="color:var(--gold)">$'+fmt(amt)+'</b> 至「'+lev.ticker+'」。<br><br>'
-      +'總曝險 <b>'+expBefore+'%</b> → <b style="color:var(--gold)">'+expAfter+'%</b>，配對比例約 <b>'+ratio+'% : '+(100-ratio)+'%</b>。<br>'
-      +'執行後加碼金餘額 <b>$'+fmt(newCash)+'</b>'+(reserve>0?'（≥ 保留線 $'+fmt(reserve)+'）':'')+'。<br><br>'
+    message:'從「'+cash.ticker+'」移轉 <b style="color:var(--gold)">$'+fmt(amt)+'</b> 至「'+lev.ticker+'」'+(fmtShares(amt,lev.lastPrice)?'（'+fmtShares(amt,lev.lastPrice)+'）':'')+'。<br><br>'
+      +'總曝險 <b>'+curPct.toFixed(1)+'%</b> → <b style="color:var(--gold)">'+achieved.toFixed(1)+'%</b>，配對比例約 <b>'+ratio+'% : '+(100-ratio)+'%</b>。'+clampNote+'<br>'
+      +'執行後加碼金餘額 <b>$'+fmt(newCash)+'</b>'+(reserve>0?'（≥ 保留線 $'+fmt(reserve)+'）':'')+'，目標曝險同步設為 <b>'+achieved.toFixed(1)+'%</b>。<br><br>'
       +'<span style="color:var(--muted);font-size:11px">請先完成實際下單，此按鈕只更新帳面數字。</span>',
     confirmText:'✓ 已下單，更新帳面',
-    confirmColor:'var(--gold)',
+    confirmColor:'var(--red)',
     onConfirm: ()=>{
       cash.current = newCash;
+      lev.current  = newLev;
       if((cash.costBasis||0)>0) cash.costBasis = Math.max(0, cash.costBasis - amt);
-      lev.current = newLev;
       lev.costBasis = (lev.costBasis||0) + amt;
-      if(lev.lastPrice) lev.shares = Math.round((lev.shares||0) + amt/lev.lastPrice);
+      if(lev.lastPrice) lev.shares = Math.max(0, Math.round((lev.shares||0) + amt/lev.lastPrice));
       t.done = true;
+      dipBuy.targetExp = achieved;           // 執行 = 目標與現實同時抵達此階
+      derivePairFromTargetExp();
       buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
       renderDipBuy(true);
-      showCloudStatus('⚡ 第'+(i+1)+'階加碼已入帳', 'var(--green)');
+      showCloudStatus('⚡ 第 '+(i+1)+' 階已執行：總曝險 '+achieved.toFixed(1)+'%', 'var(--green)');
     }
   });
+}
+
+function dipResetTier(i){
+  const t = dipBuy.tiers[i];
+  if(t){ t.done=false; saveData(); renderDipBuy(true); }
 }
 
 function renderDipBuy(force){
@@ -3259,25 +3680,34 @@ function renderDipBuy(force){
   }
 
   // 階梯列
+  const _tot = totalCurrent();
+  const _curExpAll = assets.reduce((s,x)=>s+x.current*(x.leverage!=null?x.leverage:1),0);
+  const _curPct = _tot>0 ? _curExpAll/_tot*100 : 0;
+  const _dLev = (lev.leverage!=null?lev.leverage:1)-(cash.leverage!=null?cash.leverage:0);
   dipBuy.tiers.forEach((t,i)=>{
     const triggered = dd!=null && dd >= t.dd;
-    const amt = Math.round(avail * t.pct/100);
-    // 執行後預覽（口徑：以「當下實際持倉」計，不疊前面未執行階的假設）
-    // 總曝險變化 = 移轉額 ×（槓桿標的倍數 − 現金倍數）；分母總資產不變
-    const _tot = totalCurrent();
-    const _curExpAll = assets.reduce((s,x)=>s+x.current*(x.leverage!=null?x.leverage:1),0);
-    const _dLev = (lev.leverage!=null?lev.leverage:1)-(cash.leverage!=null?cash.leverage:0);
+    // 金額 = 把總曝險從「現在」帶到「此階目標」所需的移轉額（路徑無關），受保留線封頂
+    const rawAmt = (_tot>0 && _dLev>0) ? Math.round(Math.max(0, t.exp - _curPct)/100*_tot/_dLev) : 0;
+    const amt = Math.min(rawAmt, avail);
+    const clamped = rawAmt > avail && rawAmt > 0;
     const _expAfter = _tot>0 ? ((_curExpAll + amt*_dLev)/_tot*100) : 0;
-    const _pairL = lev.current + amt, _pairC = cash.current - amt, _pair = _pairL + _pairC;
-    const _ratioL = _pair>0 ? Math.round(_pairL/_pair*100) : 0;
-    const previewHtml = (t.done || amt<=0) ? '' :
+    const atOrAbove = t.exp <= _curPct + 0.05;
+    const previewHtml = t.done ? '' :
       '<div style="font-size:10px;color:'+(triggered?'var(--gold)':'var(--muted)')+';margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.05);font-family:\'Space Mono\',monospace">'
-      +'執行後總曝險 <b style="font-size:12px">'+_expAfter.toFixed(1)+'%</b>'
-      +'<span style="opacity:.7">　組內 '+_ratioL+':'+(100-_ratioL)+'</span></div>';
+      +(atOrAbove
+        ? '現在曝險 '+_curPct.toFixed(1)+'% 已達此階目標'
+        : '執行後總曝險 '+_curPct.toFixed(1)+'% → <b style="font-size:12px">'+_expAfter.toFixed(1)+'%</b>'
+          +(clamped?'<span style="opacity:.85">（受保留線限制，原目標 '+t.exp+'%）</span>':'')
+          +'<br>'+(fmtShares(amt, lev.lastPrice)
+            ? '<span style="opacity:.85">'+(fmtShares(amt, lev.lastPrice))+'</span>'
+            : '<span style="opacity:.5">輸入股價可顯示股數</span>'))
+      +'</div>';
     let statusHtml;
     if(t.done){
       statusHtml = '<span style="font-size:11px;color:var(--green);font-weight:700">✓ 已執行</span>'
         +'<button onclick="dipResetTier('+i+')" title="重設此階" style="margin-left:6px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer">↺</button>';
+    } else if(triggered && atOrAbove){
+      statusHtml = '<span style="font-size:11px;color:var(--green)">✓ 已達目標</span>';
     } else if(triggered && amt<=0){
       statusHtml = '<span style="font-size:11px;color:var(--gold)">可動用為 0</span>';
     } else if(triggered){
@@ -3293,7 +3723,7 @@ function renderDipBuy(force){
           +'<span style="font-family:\'Space Mono\',monospace;font-weight:700;color:var(--muted)">第'+(i+1)+'階</span>'
           +'回檔 −<input type="number" inputmode="decimal" value="'+t.dd+'" onchange="dipSetTier('+i+',\'dd\',this.value)"'
             +' style="width:54px;background:#111;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:3px 5px;font-family:\'Space Mono\',monospace;font-size:12px;text-align:center">%'
-          +'　投入 <input type="number" inputmode="decimal" value="'+t.pct+'" onchange="dipSetTier('+i+',\'pct\',this.value)"'
+          +'　目標曝險 <input type="number" inputmode="decimal" value="'+t.exp+'" onchange="dipSetTier('+i+',\'exp\',this.value)"'
             +' style="width:54px;background:#111;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:3px 5px;font-family:\'Space Mono\',monospace;font-size:12px;text-align:center">%'
         +'</div>'
         +'<div style="display:flex;align-items:center;gap:8px">'
@@ -3305,7 +3735,7 @@ function renderDipBuy(force){
       +'</div>';
   });
 
-  h += '<div style="font-size:10px;color:var(--muted);line-height:1.7;margin-top:10px">・投入%以「執行當下的可動用餘額（加碼金 − 保留現金）」計算，永不動用保留額。<br>・門檻按 2 倍槓桿校準：−30／−45／−60 約當大盤 −15／−22／−30，頻率約每 2 年／3–4 年／8–10 年一遇，過淺會太早耗盡子彈。<br>・第 3 階投入 100% 會將可動用加碼金全數投入，配對趨近 10:0（僅剩保留現金），組合淨曝險將明顯超過 100%，直到創新高重新武裝並調回配對。</div>';
+  h += '<div style="font-size:10px;color:var(--muted);line-height:1.7;margin-top:10px">・每階「目標曝險」＝觸發時要把總曝險帶到的水位；金額由系統即時反推（路徑無關，中途怎麼跌都算得準），永不動用保留現金，不足時封頂於可動用餘額。<br>・門檻按 2 倍槓桿校準：−30／−45／−60 約當大盤 −15／−22／−30，頻率約每 2 年／3–4 年／8–10 年一遇。<br>・執行後「目標曝險」同步更新，全 app 的再平衡建議自動指向同一終點；創新高重新武裝時目標曝險自動回到 100%（收割訊號）。</div>';
 
   // ── 曝險控制器 ──
   const cc = expCtrlCalc(lev, cash, avail);
@@ -3315,11 +3745,12 @@ function renderDipBuy(force){
       +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
         +'<div style="font-size:11px;color:var(--muted)">現在總曝險 <b style="font-family:\'Space Mono\',monospace;font-size:14px;color:var(--text)">'+cc.curPct.toFixed(1)+'%</b></div>'
         +'<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">目標 '
-          +'<input type="number" inputmode="decimal" step="any" value="'+(expCtrlTarget??'')+'" placeholder="—" onchange="expCtrlSet(this.value)"'
+          +'<input type="number" inputmode="decimal" step="any" value="'+(dipBuy.targetExp??'')+'" placeholder="—" onchange="dipSetTargetExp(this.value)"'
           +' style="width:70px;background:#111;color:var(--gold2);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-family:\'Space Mono\',monospace;font-size:14px;font-weight:700;text-align:right">%'
         +'</div>'
       +'</div>'
-      +'<div style="font-size:9px;color:var(--muted);opacity:.6;margin-top:5px">可達範圍 '+cc.minPct.toFixed(1)+'%–'+cc.maxPct.toFixed(1)+'%（上限受保留現金限制）・桿子＝'+lev.ticker+'↔'+cash.ticker+'，不動美股</div>';
+      +'<div style="font-size:9px;color:var(--muted);opacity:.6;margin-top:5px">可達範圍 '+cc.minPct.toFixed(1)+'%–'+cc.maxPct.toFixed(1)+'%（上限受保留現金限制）・桿子＝'+lev.ticker+'↔'+cash.ticker+'，不動美股、不改群組占比</div>'
+      +'<div style="font-size:9px;color:var(--muted);opacity:.6;margin-top:3px">配對比例由目標曝險自動推導：'+lev.ticker+' '+Math.round(lev.innerPct)+'% : '+cash.ticker+' '+Math.round(cash.innerPct)+'%（持倉頁拉桿＝同一目標的另一入口）・創新高自動回到 100%</div>';
     if(cc.amt!=null){
       if(Math.abs(cc.amt) < 1){
         h += '<div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--border);font-size:11px;color:var(--green)">✓ 已在目標曝險，無需調整</div>';
@@ -3327,14 +3758,10 @@ function renderDipBuy(force){
         const buying = cc.amt > 0;
         const a = Math.abs(cc.amt);
         const clr = buying ? 'var(--green)' : 'var(--red)';
-        let sharesTxt = '';
-        if(lev.lastPrice && lev.lastPrice > 0){
-          const sh = a / lev.lastPrice;
-          const shD = sh>=10 ? Math.round(sh).toLocaleString() : sh>=1 ? sh.toFixed(1) : sh.toFixed(3);
-          sharesTxt = '（約 '+shD+' 股 @ NT$ '+lev.lastPrice.toLocaleString('zh-TW',{minimumFractionDigits:2,maximumFractionDigits:2})+'）';
-        }
+        const _fs = fmtShares(a, lev.lastPrice);
+        const sharesTxt = _fs ? '（'+_fs+'）' : '<span style="opacity:.5">（輸入股價可顯示股數）</span>';
         h += '<div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--border)">'
-          +(cc.clamped?'<div style="font-size:10px;color:var(--gold);margin-bottom:6px">⚠ 目標 '+expCtrlTarget+'% 超出可達範圍，已封頂至 '+cc.eff.toFixed(1)+'%</div>':'')
+          +(cc.clamped?'<div style="font-size:10px;color:var(--gold);margin-bottom:6px">⚠ 目標 '+dipBuy.targetExp+'% 超出目前持倉可達範圍，已封頂至 '+cc.eff.toFixed(1)+'%</div>':'')
           +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
             +'<div><span style="color:'+clr+';font-weight:700;font-size:13px">'+(buying?'↑ 買入':'↓ 賣出')+' '+lev.ticker+' <span style="font-family:\'Space Mono\',monospace">$'+fmt(a)+'</span></span>'
               +'<div style="font-size:10px;color:var(--muted);margin-top:2px">'+(buying?'從「'+cash.ticker+'」支付':'回補「'+cash.ticker+'」')+sharesTxt+'</div>'
