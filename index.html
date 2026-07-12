@@ -795,7 +795,7 @@ function buildAssetCards(){
           <div style="flex:1;min-width:0">
             <div class="input-label">成本 ${isUSD?'(USD)':'(NT$)'}</div>
             <input class="input-field" id="cost-${a.id}" type="number" inputmode="decimal" step="any"
-              value="${a.costBasis>0 ? (isUSD ? a.costBasis.toFixed(0) : a.costBasis) : ''}"
+              value="${a.costBasis>0 ? a.costBasis : ''}"
               placeholder="0" style="padding:8px 10px;font-size:13px;${isUSD?'border-color:rgba(91,155,213,.4)':''}">
           </div>
           <div style="flex:1.2;min-width:0;padding:10px 12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)">
@@ -3566,7 +3566,7 @@ function expCtrlExec(){
       }
       // 只有「原本就以股數追蹤」的資產才更新股數；金額模式（shares=0）絕不寫入，
       // 否則價格引擎會用「僅本次股數 × 價格」覆寫金額，蒸發原有部位。
-      if(lev.lastPrice && (lev.shares||0) > 0) lev.shares = Math.max(0, Math.round(lev.shares + cc.amt/lev.lastPrice));
+      if(lev.lastPrice && (lev.shares||0) > 0) lev.shares = Math.max(0, Math.round((lev.shares + cc.amt/lev.lastPrice)*10000)/10000);
       buildGroupCards(); buildReturnCards(); updateGroupSelect(); updateCalc();
       renderDipBuy(true);
       showCloudStatus('🎯 曝險已調整至 '+cc.afterPct.toFixed(1)+'%', 'var(--green)');
@@ -3611,7 +3611,7 @@ function execDipTier(i){
       lev.current  = newLev;
       if((cash.costBasis||0)>0) cash.costBasis = Math.max(0, cash.costBasis - amt);
       lev.costBasis = (lev.costBasis||0) + amt;
-      if(lev.lastPrice && (lev.shares||0) > 0) lev.shares = Math.max(0, Math.round(lev.shares + amt/lev.lastPrice));
+      if(lev.lastPrice && (lev.shares||0) > 0) lev.shares = Math.max(0, Math.round((lev.shares + amt/lev.lastPrice)*10000)/10000);
       t.done = true;
       dipBuy.targetExp = achieved;           // 執行 = 目標與現實同時抵達此階
       derivePairFromTargetExp();
